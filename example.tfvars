@@ -114,7 +114,7 @@ subnets = {
     nsg_name         = "m3i-lz-prod-cus-nsg-vm-01"
     rt_name          = "m3i-lz-prod-cus-rt-vm-01"
   }
-  app = {
+  db = {
     name             = "m3i-lz-prod-cus-snet-db-01"
     address_prefixes = ["10.100.5.0/25"]
     nsg_name         = "m3i-lz-prod-cus-nsg-db-01"
@@ -149,7 +149,7 @@ subnets = {
     nsg_name         = "m3i-lz-nonprod-cus-nsg-vm-01"
     rt_name          = "m3i-lz-nonprod-cus-rt-vm-01"
   }
-  app = {
+  db = {
     name             = "m3i-lz-nonprod-cus-snet-db-01"
     address_prefixes = ["10.100.9.0/25"]
     nsg_name         = "m3i-lz-nonprod-cus-nsg-db-01"
@@ -263,7 +263,7 @@ subnets = {
     nsg_name         = "m3i-lz-prod-eus2-nsg-vm-01"
     rt_name          = "m3i-lz-prod-eus2-rt-vm-01"
   }
-  app = {
+  db = {
     name             = "m3i-lz-prod-eus2-snet-db-01"
     address_prefixes = ["10.101.5.0/25"]
     nsg_name         = "m3i-lz-prod-eus2-nsg-db-01"
@@ -297,7 +297,7 @@ subnets = {
     nsg_name         = "m3i-lz-nonprod-eus2-nsg-vm-01"
     rt_name          = "m3i-lz-nonprod-eus2-rt-vm-01"
   }
-  app = {
+  db = {
     name             = "m3i-lz-nonprod-eus2-snet-db-01"
     address_prefixes = ["10.101.9.0/25"]
     nsg_name         = "m3i-lz-nonprod-eus2-nsg-db-01"

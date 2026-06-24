@@ -15,6 +15,20 @@ data "azurerm_virtual_network" "hub_vnet" {
   provider            = azurerm.platform
 }
 
+data "terraform_remote_state" "platform_hub" {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "m3i-hub-prod-rg-tf-cus"
+    storage_account_name = "m3ihubprodstortfcus"
+    container_name       = "tfstate"
+    key                  = "m3i-platform-cus.tfstate"
+  }
+}
+
+locals {
+  hub_firewall_private_ip_effective = var.hub_firewall_private_ip != "" ? var.hub_firewall_private_ip : try(data.terraform_remote_state.platform_hub.outputs.hub_firewall_private_ip, "")
+}
+
 #---------------------------------------
 # Resource Groups
 #---------------------------------------
@@ -51,16 +65,6 @@ resource "azurerm_subnet" "spoke_vm_subnet" {
   name                 = var.subnets.vm.name
   resource_group_name  = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   address_prefixes     = var.subnets.vm.address_prefixes
-  virtual_network_name = azurerm_virtual_network.spoke_vnet.name
-  provider             = azurerm.spoke
-
-  depends_on = [azurerm_virtual_network.spoke_vnet]
-}
-
-resource "azurerm_subnet" "spoke_app_subnet" {
-  name                 = var.subnets.app.name
-  resource_group_name  = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
-  address_prefixes     = var.subnets.app.address_prefixes
   virtual_network_name = azurerm_virtual_network.spoke_vnet.name
   provider             = azurerm.spoke
 
@@ -105,20 +109,6 @@ resource "azurerm_subnet_network_security_group_association" "spoke_vm_nsg_assoc
   provider                  = azurerm.spoke
 }
 
-resource "azurerm_network_security_group" "spoke_app_nsg" {
-  name                = var.subnets.app.nsg_name
-  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
-  location            = var.location
-  provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
-}
-
-resource "azurerm_subnet_network_security_group_association" "spoke_app_nsg_assoc" {
-  subnet_id                 = azurerm_subnet.spoke_app_subnet.id
-  network_security_group_id = azurerm_network_security_group.spoke_app_nsg.id
-  provider                  = azurerm.spoke
-}
-
 resource "azurerm_network_security_group" "spoke_db_nsg" {
   name                = var.subnets.db.nsg_name
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
@@ -150,35 +140,13 @@ resource "azurerm_route_table" "spoke_vm_rt" {
     name           = "m3i-cus-default-to-hub-firewall"
     address_prefix = "0.0.0.0/0"
     next_hop_type  = "VirtualAppliance"
-    next_hop_in_ip_address = var.hub_firewall_private_ip
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
 }
 
 resource "azurerm_subnet_route_table_association" "spoke_vm_rt_assoc" {
   subnet_id      = azurerm_subnet.spoke_vm_subnet.id
   route_table_id = azurerm_route_table.spoke_vm_rt.id
-  provider       = azurerm.spoke
-}
-
-# App Subnet Route Table
-resource "azurerm_route_table" "spoke_app_rt" {
-  name                = var.subnets.app.rt_name
-  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
-  location            = var.location
-  provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
-
-  route {
-    name           = "m3i-cus-default-to-hub-firewall"
-    address_prefix = "0.0.0.0/0"
-    next_hop_type  = "VirtualAppliance"
-    next_hop_in_ip_address = var.hub_firewall_private_ip
-  }
-}
-
-resource "azurerm_subnet_route_table_association" "spoke_app_rt_assoc" {
-  subnet_id      = azurerm_subnet.spoke_app_subnet.id
-  route_table_id = azurerm_route_table.spoke_app_rt.id
   provider       = azurerm.spoke
 }
 
@@ -194,7 +162,7 @@ resource "azurerm_route_table" "spoke_db_rt" {
     name           = "m3i-cus-default-to-hub-firewall"
     address_prefix = "0.0.0.0/0"
     next_hop_type  = "VirtualAppliance"
-    next_hop_in_ip_address = var.hub_firewall_private_ip
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
 }
 
@@ -216,7 +184,7 @@ resource "azurerm_route_table" "spoke_pe_rt" {
     name                   = "m3i-cus-default-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
     next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = var.hub_firewall_private_ip
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
 }
 
@@ -234,7 +202,7 @@ resource "azurerm_key_vault" "spoke_keyvault" {
   count               = var.enable_key_vault ? 1 : 0
   name                = "m3i-lz-prod-cus-kv"
   location            = var.location
-  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
+  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_kv_rg"].name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   provider            = azurerm.spoke

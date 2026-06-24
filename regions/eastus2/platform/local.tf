@@ -11,6 +11,8 @@ locals {
   # Resource Group Names
   rgs = {
     hub_vnet_rg   = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-vnet-${local.location_abbr}" }
+    hub_vm_rg     = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-vm-${local.location_abbr}" }
+    hub_kv_rg     = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-kv-${local.location_abbr}" }
     hub_fw_rg     = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-fw-${local.location_abbr}" }
     hub_laws_rg   = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-laws-${local.location_abbr}" }
     hub_rsv_rg    = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-rsv-${local.location_abbr}" }

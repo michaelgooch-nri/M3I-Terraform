@@ -46,7 +46,7 @@ variable "subnets" {
       nsg_name         = "m3i-lz-prod-eus2-nsg-vm-01"
       rt_name          = "m3i-lz-prod-eus2-rt-vm-01"
     }
-    app = {
+    db = {
       name             = "m3i-lz-prod-eus2-snet-db-01"
       address_prefixes = ["10.101.5.0/25"]
       nsg_name         = "m3i-lz-prod-eus2-nsg-db-01"

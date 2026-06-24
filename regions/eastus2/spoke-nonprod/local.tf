@@ -11,7 +11,8 @@ locals {
   rgs = {
     spoke_vnet_rg = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-vnet-${local.location_abbr}" }
     spoke_vm_rg   = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-vm-${local.location_abbr}" }
-    spoke_app_rg  = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-app-${local.location_abbr}" }
+    spoke_kv_rg   = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-kv-${local.location_abbr}" }
+    spoke_db_rg   = { name = "${local.org}-${local.admin_domain}-${local.env}-rg-db-${local.location_abbr}" }
   }
 
   # VNet Naming
@@ -29,7 +30,7 @@ locals {
   tags = {
     environment = "nonprod"
     project     = "m3i-azure-platform"
-    region      = "EastUS2"
+    region      = "eastus2"
     spoke_type  = "workload"
     managed_by  = "terraform"
   }

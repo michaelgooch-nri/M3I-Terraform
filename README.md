@@ -29,6 +29,41 @@ This repository contains Terraform code for a multi-region Azure hub-and-spoke l
 
 See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 
+## Resource Group Layout
+
+### Platform (Hub) RGs per region
+- VNet RG: `m3i-hub-prod-rg-vnet-<region_abbr>`
+- VM RG: `m3i-hub-prod-rg-vm-<region_abbr>`
+- Key Vault RG: `m3i-hub-prod-rg-kv-<region_abbr>`
+- Firewall RG: `m3i-hub-prod-rg-fw-<region_abbr>`
+- Log Analytics RG: `m3i-hub-prod-rg-laws-<region_abbr>`
+- Recovery Services Vault RG: `m3i-hub-prod-rg-rsv-<region_abbr>`
+
+### Spoke RGs per region/environment
+- VNet RG: `m3i-spoke-<env>-rg-vnet-<region_abbr>`
+- VM RG: `m3i-spoke-<env>-rg-vm-<region_abbr>`
+- Key Vault RG: `m3i-spoke-<env>-rg-kv-<region_abbr>`
+- DB RG: `m3i-spoke-<env>-rg-db-<region_abbr>`
+
+## Spoke Subnet CIDR Plan (Current)
+
+- CentralUS spoke-prod
+  - private-endpoints: `10.100.4.0/26`
+  - vm: `10.100.4.128/25`
+  - db: `10.100.5.0/25`
+- CentralUS spoke-nonprod
+  - private-endpoints: `10.100.8.0/26`
+  - vm: `10.100.8.128/25`
+  - db: `10.100.9.0/25`
+- EastUS2 spoke-prod
+  - private-endpoints: `10.101.4.0/26`
+  - vm: `10.101.4.128/25`
+  - db: `10.101.5.0/25`
+- EastUS2 spoke-nonprod
+  - private-endpoints: `10.101.8.0/26`
+  - vm: `10.101.8.128/25`
+  - db: `10.101.9.0/25`
+
 ## What Is Implemented
 
 ### Hub (Platform) Deployments
@@ -54,10 +89,10 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - Admin password stored in hub Key Vault secret `dc-admin-password`
 
 ### Spoke Deployments
-- Spoke VNet and subnets (`private-endpoints`, `vm`, `app`, `db`)
+- Spoke VNet and subnets (`private-endpoints`, `vm`, `db`)
 - NSGs and subnet associations
 - Route tables and associations for VM/DB/Private Endpoints subnets
-- Default route `0.0.0.0/0` to hub firewall via `hub_firewall_private_ip`
+- Default route `0.0.0.0/0` to hub firewall (auto-resolved from hub remote state; optional override with `hub_firewall_private_ip`)
 - Spoke-to-hub peering
 - Key Vault per spoke (optional via flag)
 
@@ -96,7 +131,7 @@ Run Terraform per root module (each directory is independent state):
 
 Notes:
 - Deploy both hubs first to obtain firewall private IP outputs.
-- Populate `hub_firewall_private_ip` in spoke tfvars before spoke apply.
+- Spokes auto-read regional hub firewall IP from hub remote state (manual `hub_firewall_private_ip` remains as optional override).
 - Keep `enable_hub_to_hub_peering` false in CentralUS until EastUS2 hub exists (or follow your staged plan).
 
 ## Core Variables to Review
@@ -115,7 +150,35 @@ In each deployment directory, verify:
   - `dc_os_image_*`
   - `admin_password` (blank = generated and stored in Key Vault)
 - Inter-region firewall routing (hub):
-  - `other_region_firewall_private_ip` (used for AzureFirewallSubnet route to the other region firewall)
+  - `other_region_firewall_private_ip` (optional override; default behavior auto-resolves from other hub remote state)
+
+## Tagging Strategy
+
+All tagged resources use this pattern:
+
+- `tags = merge(local.tags, var.common_tags)`
+
+This means:
+
+- `local.tags` provides module defaults.
+- `common_tags` can add new keys and override existing defaults when keys overlap.
+
+### Default Tags By Root Module
+
+| Root Module | Default Tags |
+|---|---|
+| centralus/platform | environment=prod, project=m3i-azure-platform, region=centralus, managed_by=terraform |
+| eastus2/platform | environment=prod, project=m3i-azure-platform, region=eastus2, managed_by=terraform |
+| centralus/spoke-prod | environment=prod, project=m3i-azure-platform, region=centralus, spoke_type=workload, managed_by=terraform |
+| centralus/spoke-nonprod | environment=nonprod, project=m3i-azure-platform, region=centralus, spoke_type=workload, managed_by=terraform |
+| eastus2/spoke-prod | environment=prod, project=m3i-azure-platform, region=eastus2, spoke_type=workload, managed_by=terraform |
+| eastus2/spoke-nonprod | environment=nonprod, project=m3i-azure-platform, region=eastus2, spoke_type=workload, managed_by=terraform |
+
+### Where To Maintain Tag Defaults
+
+- Update per-module defaults in each `local.tf`.
+- Use each module's `common_tags` variable for environment-specific extensions.
+- Keep the table above in sync whenever tag keys or values change in any `local.tf`.
 
 ## Route Table Matrix
 

@@ -26,11 +26,6 @@ output "spoke_vm_subnet_id" {
   value       = azurerm_subnet.spoke_vm_subnet.id
 }
 
-output "spoke_app_subnet_id" {
-  description = "Resource ID of the app subnet"
-  value       = azurerm_subnet.spoke_app_subnet.id
-}
-
 output "spoke_db_subnet_id" {
   description = "Resource ID of the database subnet"
   value       = azurerm_subnet.spoke_db_subnet.id

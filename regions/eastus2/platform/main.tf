@@ -9,6 +9,21 @@ data "azurerm_client_config" "current" {
   provider = azurerm.platform
 }
 
+data "terraform_remote_state" "other_region_hub" {
+  count   = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" ? 1 : 0
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "m3i-hub-prod-rg-tf-cus"
+    storage_account_name = "m3ihubprodstortfcus"
+    container_name       = "tfstate"
+    key                  = "m3i-platform-cus.tfstate"
+  }
+}
+
+locals {
+  other_region_firewall_private_ip_effective = var.other_region_firewall_private_ip != "" ? var.other_region_firewall_private_ip : (length(data.terraform_remote_state.other_region_hub) > 0 ? try(data.terraform_remote_state.other_region_hub[0].outputs.hub_firewall_private_ip, "") : "")
+}
+
 #---------------------------------------
 # Resource Groups
 #---------------------------------------
@@ -207,13 +222,13 @@ resource "azurerm_route_table" "hub_firewall_rt" {
 }
 
 resource "azurerm_route" "hub_firewall_to_other_region" {
-  count               = var.other_region_firewall_private_ip != "" ? 1 : 0
+  count               = local.other_region_firewall_private_ip_effective != "" ? 1 : 0
   name                = "m3i-eus2-to-cus-firewall"
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   route_table_name    = azurerm_route_table.hub_firewall_rt.name
   address_prefix      = "10.100.0.0/16"
   next_hop_type       = "VirtualAppliance"
-  next_hop_in_ip_address = var.other_region_firewall_private_ip
+  next_hop_in_ip_address = local.other_region_firewall_private_ip_effective
   provider            = azurerm.platform
 }
 
@@ -474,7 +489,7 @@ resource "azurerm_key_vault" "hub_keyvault" {
   count               = var.enable_key_vault ? 1 : 0
   name                = "m3i-hub-prod-eus2-kv"
   location            = var.location
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_kv_rg"].name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   provider            = azurerm.platform
@@ -535,7 +550,7 @@ resource "azurerm_network_interface" "dc_nic" {
   count               = var.enable_dc_vms ? var.dc_vm_count : 0
   name                = "az-eus2-dc0${count.index + 1}-nic"
   location            = var.location
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vm_rg"].name
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
@@ -561,7 +576,7 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
   count               = var.enable_dc_vms ? var.dc_vm_count : 0
   name                = "az-eus2-dc0${count.index + 1}"
   location            = var.location
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vm_rg"].name
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
