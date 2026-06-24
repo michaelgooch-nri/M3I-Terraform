@@ -78,7 +78,8 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Azure Firewall with policy and rule collection groups
 - NAT Gateway and public IP for egress
 - Log Analytics workspace and firewall diagnostic settings
-- Recovery Services Vault and VM backup policy
+- Recovery Services Vault (GRS, cross-region restore enabled) and VM backup policy
+- Backup protection for all hub DC VMs in both regions (4 total with current defaults)
 - Key Vault per hub
 - Hub-to-spoke and hub-to-hub peering resources
 - Active Directory VM foundations in each hub:
@@ -87,6 +88,9 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - Size default: `Standard_D2s_v5` (2-core D-series)
   - OS default: Windows Server 2025 Datacenter
   - Admin password stored in hub Key Vault secret `dc-admin-password`
+  - Base monitoring enabled via Azure Monitor Agent + Data Collection Rule to regional Log Analytics workspace
+    - Windows Event logs: Application, System, Security (audit)
+    - Performance counters: CPU, memory, disk free space/latency, network throughput (60s)
 
 ### Spoke Deployments
 - Spoke VNet and subnets (`private-endpoints`, `vm`, `db`)

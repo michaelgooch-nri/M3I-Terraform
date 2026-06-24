@@ -293,7 +293,7 @@ resource "azurerm_network_interface" "cato_vsocket_lan_nic" {
   location            = var.location
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   provider            = azurerm.platform
-  enable_ip_forwarding = true
+  ip_forwarding_enabled = true
   tags                = merge(local.tags, var.common_tags)
 
   ip_configuration {
@@ -440,8 +440,54 @@ resource "azurerm_monitor_diagnostic_setting" "hub_firewall_diagnostics" {
     category = "AzureFirewallApplicationRule"
   }
 
-  metric {
+  enabled_metric {
     category = "AllMetrics"
+  }
+}
+
+resource "azurerm_monitor_data_collection_rule" "dc_base_monitoring" {
+  count               = var.enable_log_analytics && var.enable_dc_vms ? 1 : 0
+  name                = local.hub_dcr_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_laws_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  destinations {
+    log_analytics {
+      workspace_resource_id = azurerm_log_analytics_workspace.hub_laws[0].id
+      name                  = "dc-laws-destination"
+    }
+  }
+
+  data_flow {
+    streams      = ["Microsoft-WindowsEvent", "Microsoft-Perf"]
+    destinations = ["dc-laws-destination"]
+  }
+
+  data_sources {
+    windows_event_log {
+      name           = "dc-windows-events"
+      streams        = ["Microsoft-WindowsEvent"]
+      x_path_queries = [
+        "Application!*[System[(Level=1 or Level=2 or Level=3)]]",
+        "System!*[System[(Level=1 or Level=2 or Level=3)]]",
+        "Security!*[System[(band(Keywords,4503599627370496))]]"
+      ]
+    }
+
+    performance_counter {
+      name                          = "dc-core-perf"
+      streams                       = ["Microsoft-Perf"]
+      sampling_frequency_in_seconds = 60
+      counter_specifiers = [
+        "\\Processor Information(_Total)\\% Processor Time",
+        "\\Memory\\% Committed Bytes In Use",
+        "\\LogicalDisk(_Total)\\% Free Space",
+        "\\LogicalDisk(_Total)\\Avg. Disk sec/Transfer",
+        "\\Network Interface(*)\\Bytes Total/sec"
+      ]
+    }
   }
 }
 
@@ -455,10 +501,11 @@ resource "azurerm_recovery_services_vault" "hub_rsv" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_rsv_rg"].name
   location            = var.location
   sku                 = "Standard"
+  storage_mode_type   = "GeoRedundant"
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
-  soft_delete_enabled           = true
+  cross_region_restore_enabled  = true
   public_network_access_enabled = true
 }
 
@@ -479,6 +526,15 @@ resource "azurerm_backup_policy_vm" "hub_backup_policy" {
   retention_daily {
     count = 7
   }
+}
+
+resource "azurerm_backup_protected_vm" "dc_vm_backup" {
+  count               = var.enable_backup && var.enable_dc_vms ? var.dc_vm_count : 0
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_rsv_rg"].name
+  recovery_vault_name = azurerm_recovery_services_vault.hub_rsv[0].name
+  source_vm_id        = azurerm_windows_virtual_machine.dc_vm[count.index].id
+  backup_policy_id    = azurerm_backup_policy_vm.hub_backup_policy[0].id
+  provider            = azurerm.platform
 }
 
 #---------------------------------------
@@ -583,7 +639,7 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
   admin_username = "azureuser"
   admin_password = var.admin_password != "" ? var.admin_password : random_password.dc_admin_password[0].result
 
-  vm_size = var.dc_vm_size
+  size = var.dc_vm_size
 
   network_interface_ids = [azurerm_network_interface.dc_nic[count.index].id]
 
@@ -603,6 +659,28 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
     azurerm_network_interface.dc_nic,
     azurerm_network_interface_security_group_association.dc_nsg_assoc
   ]
+}
+
+resource "azurerm_virtual_machine_extension" "dc_ama" {
+  count                = var.enable_log_analytics && var.enable_dc_vms ? var.dc_vm_count : 0
+  name                 = "AzureMonitorWindowsAgent"
+  virtual_machine_id   = azurerm_windows_virtual_machine.dc_vm[count.index].id
+  publisher            = "Microsoft.Azure.Monitor"
+  type                 = "AzureMonitorWindowsAgent"
+  type_handler_version = "1.0"
+  provider             = azurerm.platform
+
+  auto_upgrade_minor_version = true
+}
+
+resource "azurerm_monitor_data_collection_rule_association" "dc_base_monitoring_assoc" {
+  count                   = var.enable_log_analytics && var.enable_dc_vms ? var.dc_vm_count : 0
+  name                    = "dc-base-monitoring-assoc-${count.index + 1}"
+  target_resource_id      = azurerm_windows_virtual_machine.dc_vm[count.index].id
+  data_collection_rule_id = azurerm_monitor_data_collection_rule.dc_base_monitoring[0].id
+  provider                = azurerm.platform
+
+  depends_on = [azurerm_virtual_machine_extension.dc_ama]
 }
 
 #---------------------------------------
