@@ -37,19 +37,19 @@ variable "subnets" {
     cato_lan = {
       name             = "m3i-hub-prod-cus-snet-cato-lan-01"
       address_prefixes = ["10.100.0.32/27"]
-      nsg_name         = ""
+      nsg_name         = "m3i-hub-prod-cus-nsg-snet-cato-lan-01"
       rt_name          = ""
     }
     cato_wan = {
       name             = "m3i-hub-prod-cus-snet-cato-wan-01"
       address_prefixes = ["10.100.0.64/27"]
-      nsg_name         = ""
+      nsg_name         = "m3i-hub-prod-cus-nsg-snet-cato-wan-01"
       rt_name          = ""
     }
     cato_mgmt = {
       name             = "m3i-hub-prod-cus-snet-cato-mgmt-01"
       address_prefixes = ["10.100.0.96/27"]
-      nsg_name         = ""
+      nsg_name         = "m3i-hub-prod-cus-nsg-snet-cato-mgmt-01"
       rt_name          = ""
     }
     firewall = {
@@ -61,7 +61,7 @@ variable "subnets" {
     private_endpoints = {
       name             = "m3i-hub-prod-cus-snet-pe-01"
       address_prefixes = ["10.100.0.192/26"]
-      nsg_name         = ""
+      nsg_name         = "m3i-hub-prod-cus-nsg-snet-pe-01"
       rt_name          = ""
     }
     shared_services = {

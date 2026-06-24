@@ -192,13 +192,186 @@ resource "azurerm_network_security_group" "hub_shared_services_nsg" {
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
-  # Add ingress/egress rules as needed for your environment
-  # Example: allow inter-vnet communication, DNS, etc.
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "hub_cato_lan_nsg" {
+  name                = var.subnets.cato_lan.nsg_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "hub_cato_wan_nsg" {
+  name                = var.subnets.cato_wan.nsg_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "hub_cato_mgmt_nsg" {
+  name                = var.subnets.cato_mgmt.nsg_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "hub_private_endpoints_nsg" {
+  name                = var.subnets.private_endpoints.nsg_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "hub_shared_services_nsg_assoc" {
   subnet_id                 = azurerm_subnet.hub_shared_services_subnet.id
   network_security_group_id = azurerm_network_security_group.hub_shared_services_nsg.id
+  provider                  = azurerm.platform
+}
+
+resource "azurerm_subnet_network_security_group_association" "hub_cato_lan_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.hub_cato_lan_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_cato_lan_nsg.id
+  provider                  = azurerm.platform
+}
+
+resource "azurerm_subnet_network_security_group_association" "hub_cato_wan_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.hub_cato_wan_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_cato_wan_nsg.id
+  provider                  = azurerm.platform
+}
+
+resource "azurerm_subnet_network_security_group_association" "hub_cato_mgmt_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.hub_cato_mgmt_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_cato_mgmt_nsg.id
+  provider                  = azurerm.platform
+}
+
+resource "azurerm_subnet_network_security_group_association" "hub_private_endpoints_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.hub_private_endpoints_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_private_endpoints_nsg.id
   provider                  = azurerm.platform
 }
 

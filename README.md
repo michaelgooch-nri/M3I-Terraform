@@ -269,6 +269,125 @@ This means:
 | EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-db-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-db-01 |
 | EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-pe-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-pe-01 |
 
+## NSG Inventory and Associations
+
+Current model:
+- Total NSGs: `22`
+- Total NSG subnet associations: `22`
+- All defined NSGs are intentionally wide open right now:
+  - Inbound: `allow-all-inbound` (priority `100`, protocol `*`, source/destination `*`, ports `*`)
+  - Outbound: `allow-all-outbound` (priority `110`, protocol `*`, source/destination `*`, ports `*`)
+
+### CentralUS Hub
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-hub-prod-cus-nsg-snet-shared-services-01 | m3i-hub-prod-cus-snet-shared-services-01 |
+| m3i-hub-prod-cus-nsg-snet-cato-lan-01 | m3i-hub-prod-cus-snet-cato-lan-01 |
+| m3i-hub-prod-cus-nsg-snet-cato-wan-01 | m3i-hub-prod-cus-snet-cato-wan-01 |
+| m3i-hub-prod-cus-nsg-snet-cato-mgmt-01 | m3i-hub-prod-cus-snet-cato-mgmt-01 |
+| m3i-hub-prod-cus-nsg-snet-pe-01 | m3i-hub-prod-cus-snet-pe-01 |
+
+### EastUS2 Hub
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-hub-prod-eus2-nsg-snet-shared-services-01 | m3i-hub-prod-eus2-snet-shared-services-01 |
+| m3i-hub-prod-eus2-nsg-snet-cato-lan-01 | m3i-hub-prod-eus2-snet-cato-lan-01 |
+| m3i-hub-prod-eus2-nsg-snet-cato-wan-01 | m3i-hub-prod-eus2-snet-cato-wan-01 |
+| m3i-hub-prod-eus2-nsg-snet-cato-mgmt-01 | m3i-hub-prod-eus2-snet-cato-mgmt-01 |
+| m3i-hub-prod-eus2-nsg-snet-pe-01 | m3i-hub-prod-eus2-snet-pe-01 |
+
+### CentralUS Spoke Prod
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-lz-prod-cus-nsg-vm-01 | m3i-lz-prod-cus-snet-vm-01 |
+| m3i-lz-prod-cus-nsg-db-01 | m3i-lz-prod-cus-snet-db-01 |
+| m3i-lz-prod-cus-nsg-pe-01 | m3i-lz-prod-cus-snet-pe-01 |
+
+### CentralUS Spoke NonProd
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-lz-nonprod-cus-nsg-vm-01 | m3i-lz-nonprod-cus-snet-vm-01 |
+| m3i-lz-nonprod-cus-nsg-db-01 | m3i-lz-nonprod-cus-snet-db-01 |
+| m3i-lz-nonprod-cus-nsg-pe-01 | m3i-lz-nonprod-cus-snet-pe-01 |
+
+### EastUS2 Spoke Prod
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-lz-prod-eus2-nsg-vm-01 | m3i-lz-prod-eus2-snet-vm-01 |
+| m3i-lz-prod-eus2-nsg-db-01 | m3i-lz-prod-eus2-snet-db-01 |
+| m3i-lz-prod-eus2-nsg-pe-01 | m3i-lz-prod-eus2-snet-pe-01 |
+
+### EastUS2 Spoke NonProd
+
+| NSG Name | Associated Subnet |
+|---|---|
+| m3i-lz-nonprod-eus2-nsg-vm-01 | m3i-lz-nonprod-eus2-snet-vm-01 |
+| m3i-lz-nonprod-eus2-nsg-db-01 | m3i-lz-nonprod-eus2-snet-db-01 |
+| m3i-lz-nonprod-eus2-nsg-pe-01 | m3i-lz-nonprod-eus2-snet-pe-01 |
+
+By design, there are no NSGs associated to:
+- `AzureBastionSubnet`
+- `GatewaySubnet`
+- `AzureFirewallSubnet`
+
+## Firewall Policy Rules (Current)
+
+Current Azure Firewall policy is intentionally minimal and includes placeholder allow ranges.
+
+### CentralUS Hub Firewall
+
+- Rule Collection Group: `DefaultNetworkRuleCollectionGroup` (priority `200`)
+- Network Rule Collection: `DefaultNetworkRuleCollection` (action `Allow`, priority `150`)
+  - Rule `allow-dns`
+    - Protocol: `UDP`
+    - Source: `*`
+    - Destination: `*`
+    - Destination Port: `53`
+  - Rule `allow-hub-to-spokes`
+    - Protocols: `TCP`, `UDP`, `ICMP`
+    - Source: `hub_vnet_address_space` (regional hub CIDR)
+    - Destination: `10.0.0.0/8` (placeholder supernet)
+    - Destination Ports: `*`
+- Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
+- Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
+  - Rule `allow-internet`
+    - Protocols: `Http` on `80`, `Https` on `443`
+    - Source: `*`
+    - Destination FQDNs: `*`
+
+### EastUS2 Hub Firewall
+
+- Rule Collection Group: `DefaultNetworkRuleCollectionGroup` (priority `200`)
+- Network Rule Collection: `DefaultNetworkRuleCollection` (action `Allow`, priority `150`)
+  - Rule `allow-dns`
+    - Protocol: `UDP`
+    - Source: `*`
+    - Destination: `*`
+    - Destination Port: `53`
+  - Rule `allow-hub-to-spokes`
+    - Protocols: `TCP`, `UDP`, `ICMP`
+    - Source: `hub_vnet_address_space` (regional hub CIDR)
+    - Destination: `10.8.0.0/8` (placeholder supernet)
+    - Destination Ports: `*`
+- Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
+- Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
+  - Rule `allow-internet`
+    - Protocols: `Http` on `80`, `Https` on `443`
+    - Source: `*`
+    - Destination FQDNs: `*`
+
+### Effective Behavior
+
+- DNS is broadly allowed.
+- Hub-to-spoke flows are broadly allowed using placeholder destination ranges.
+- Outbound web access is broadly allowed to all FQDNs on HTTP/HTTPS.
+- No explicit deny rules, DNAT rules, or tightly scoped spoke ranges are currently defined.
+
 ## Typical Commands
 
 ```powershell

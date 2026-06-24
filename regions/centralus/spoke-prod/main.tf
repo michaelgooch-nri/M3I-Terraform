@@ -101,6 +101,30 @@ resource "azurerm_network_security_group" "spoke_vm_nsg" {
   location            = var.location
   provider            = azurerm.spoke
   tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "spoke_vm_nsg_assoc" {
@@ -115,11 +139,73 @@ resource "azurerm_network_security_group" "spoke_db_nsg" {
   location            = var.location
   provider            = azurerm.spoke
   tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "spoke_db_nsg_assoc" {
   subnet_id                 = azurerm_subnet.spoke_db_subnet.id
   network_security_group_id = azurerm_network_security_group.spoke_db_nsg.id
+  provider                  = azurerm.spoke
+}
+
+resource "azurerm_network_security_group" "spoke_pe_nsg" {
+  name                = var.subnets.private_endpoints.nsg_name
+  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.spoke
+  tags                = merge(local.tags, var.common_tags)
+
+  security_rule {
+    name                       = "allow-all-inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "spoke_pe_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.spoke_private_endpoints_subnet.id
+  network_security_group_id = azurerm_network_security_group.spoke_pe_nsg.id
   provider                  = azurerm.spoke
 }
 

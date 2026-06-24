@@ -37,7 +37,7 @@ variable "subnets" {
     private_endpoints = {
       name             = "m3i-lz-nonprod-cus-snet-pe-01"
       address_prefixes = ["10.100.8.0/26"]
-      nsg_name         = ""
+      nsg_name         = "m3i-lz-nonprod-cus-nsg-pe-01"
       rt_name          = ""
     }
     vm = {
