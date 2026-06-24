@@ -2,6 +2,16 @@
 
 This repository contains Terraform code for a multi-region Azure hub-and-spoke landing zone across CentralUS and EastUS2, with separate subscriptions for platform, production spoke, and non-production spoke per region.
 
+## Prerequisites
+
+- Terraform CLI installed (version compatible with `~> 4.x` AzureRM provider workflow in this repo)
+- Azure access to platform + spoke subscriptions
+- Backend storage accounts/containers already created for each root state
+- `example.tfvars` copied and updated with your subscription IDs and environment values
+
+Optional but recommended:
+- PowerShell 7+ for running `scripts/deploy-two-pass.ps1`
+
 ## Current Topology
 
 - Regions: `centralus`, `eastus2`
@@ -20,6 +30,13 @@ This repository contains Terraform code for a multi-region Azure hub-and-spoke l
 ### Hubs
 - CentralUS hub: `10.100.0.0/22`
 - EastUS2 hub: `10.101.0.0/22`
+
+### Bastion VNets
+- CentralUS bastion: `10.99.0.0/26` (`m3i-hub-bastion-cus-vnet-01`)
+- EastUS2 bastion: `10.99.0.64/26` (`m3i-hub-bastion-eus2-vnet-01`)
+
+Note:
+- EastUS2 was implemented with `10.99.0.64/26` because `/26` network boundaries must align on increments of 64.
 
 ### Spokes
 - CentralUS spoke-prod: `10.100.4.0/22`
@@ -77,6 +94,11 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - `shared-services`
 - Azure Firewall with policy and rule collection groups
 - NAT Gateway and public IP for egress
+- Azure Bastion host per region in dedicated Bastion VNet/subnet (`AzureBastionSubnet`)
+- Bastion VNet peering model per region:
+  - Bastion <-> Hub
+  - Bastion <-> Spoke Prod
+  - Bastion <-> Spoke NonProd
 - Log Analytics workspace and firewall diagnostic settings
 - Recovery Services Vault (GRS, cross-region restore enabled) and VM backup policy
 - Backup protection for all hub DC VMs in both regions (4 total with current defaults)
@@ -126,17 +148,45 @@ M3I-Terraform/
 
 Run Terraform per root module (each directory is independent state):
 
-1. `regions/centralus/platform`
-2. `regions/centralus/spoke-prod`
-3. `regions/centralus/spoke-nonprod`
-4. `regions/eastus2/platform`
+1. `regions/centralus/platform` (pass 1)
+2. `regions/eastus2/platform` (pass 1)
+3. `regions/centralus/spoke-prod`
+4. `regions/centralus/spoke-nonprod`
 5. `regions/eastus2/spoke-prod`
 6. `regions/eastus2/spoke-nonprod`
+7. `regions/centralus/platform` (pass 2)
+8. `regions/eastus2/platform` (pass 2)
 
 Notes:
-- Deploy both hubs first to obtain firewall private IP outputs.
+- Pass 1 for platform roots: set `enable_hub_to_spoke_peering = false` to create hub + Bastion + hub/bastion peerings without spoke dependencies.
 - Spokes auto-read regional hub firewall IP from hub remote state (manual `hub_firewall_private_ip` remains as optional override).
+- Pass 2 for platform roots: set `enable_hub_to_spoke_peering = true` to create both hub<->spoke and bastion<->spoke peerings.
 - Keep `enable_hub_to_hub_peering` false in CentralUS until EastUS2 hub exists (or follow your staged plan).
+
+### Automated Two-Pass Deployment
+
+You can run the full three-phase sequence with one command from repository root:
+
+```powershell
+# Plan across all roots in required order
+./scripts/deploy-two-pass.ps1 -Mode plan -VarFile example.tfvars
+
+# Apply across all roots in required order
+./scripts/deploy-two-pass.ps1 -Mode apply -VarFile example.tfvars -AutoApprove
+```
+
+What the script does:
+- Phase 1: applies both platform roots with `enable_hub_to_spoke_peering=false`
+- Phase 2: applies all four spoke roots
+- Phase 3: reapplies both platform roots with `enable_hub_to_spoke_peering=true`
+
+Script location: `scripts/deploy-two-pass.ps1`
+
+Behavior details:
+- The script runs `terraform init` and `terraform validate` in every root before `plan` or `apply`.
+- Use `-Mode plan` for dry run across all phases.
+- Use `-Mode apply -AutoApprove` for non-interactive apply.
+- If one phase fails, execution stops so you can fix before continuing.
 
 ## Core Variables to Review
 
@@ -144,10 +194,12 @@ In each deployment directory, verify:
 - Subscription IDs (`platform_subscription_id`, `spoke_subscription_id` where applicable)
 - Address spaces and subnet CIDRs
 - Feature flags:
+  - `enable_bastion`
   - `enable_log_analytics`
   - `enable_backup`
   - `enable_key_vault`
   - `enable_dc_vms` (hub)
+  - `enable_hub_to_spoke_peering` (important for two-pass sequence)
 - DC settings (hub):
   - `dc_vm_count` (default `2`)
   - `dc_vm_size` (default `Standard_D2s_v5`)
@@ -155,6 +207,16 @@ In each deployment directory, verify:
   - `admin_password` (blank = generated and stored in Key Vault)
 - Inter-region firewall routing (hub):
   - `other_region_firewall_private_ip` (optional override; default behavior auto-resolves from other hub remote state)
+
+## Validation Workflow
+
+Per root, run in this order:
+1. `terraform init`
+2. `terraform validate`
+3. `terraform plan -var-file=...`
+4. `terraform apply -var-file=...`
+
+For full-stack orchestration, prefer `scripts/deploy-two-pass.ps1`.
 
 ## Tagging Strategy
 
@@ -223,6 +285,8 @@ terraform apply -var-file="../../../example.tfvars"
 - Do not commit `.tfstate`, `.terraform`, or secret files.
 - Keep one state file per root module/subscription.
 - Use PR reviews before production apply.
+- Keep backend values (`backend.tf`) aligned with the subscription/state account for each root.
+- Prefer small, region-scoped changes and validate both regional platform roots when shared patterns are modified.
 
 ## References
 

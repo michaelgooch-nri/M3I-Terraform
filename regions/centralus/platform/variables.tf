@@ -109,6 +109,30 @@ variable "enable_log_analytics" {
   default     = true
 }
 
+variable "enable_bastion" {
+  description = "Enable Azure Bastion deployment in a dedicated Bastion VNet"
+  type        = bool
+  default     = true
+}
+
+variable "bastion_vnet_name" {
+  description = "Name of the Bastion virtual network"
+  type        = string
+  default     = "m3i-hub-bastion-cus-vnet-01"
+}
+
+variable "bastion_vnet_address_space" {
+  description = "Address space for the Bastion virtual network"
+  type        = string
+  default     = "10.99.0.0/26"
+}
+
+variable "bastion_subnet_address_prefix" {
+  description = "Address prefix for AzureBastionSubnet"
+  type        = string
+  default     = "10.99.0.0/26"
+}
+
 variable "log_analytics_retention_days" {
   description = "Log Analytics retention in days"
   type        = number

@@ -52,6 +52,55 @@ resource "azurerm_virtual_network" "hub_vnet" {
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
+resource "azurerm_virtual_network" "bastion_vnet" {
+  count               = var.enable_bastion ? 1 : 0
+  name                = var.bastion_vnet_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  address_space       = [var.bastion_vnet_address_space]
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_subnet" "bastion_subnet" {
+  count                = var.enable_bastion ? 1 : 0
+  name                 = "AzureBastionSubnet"
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name = azurerm_virtual_network.bastion_vnet[0].name
+  address_prefixes     = [var.bastion_subnet_address_prefix]
+  provider             = azurerm.platform
+}
+
+resource "azurerm_public_ip" "bastion_pip" {
+  count               = var.enable_bastion ? 1 : 0
+  name                = replace(var.bastion_vnet_name, "-vnet-", "-pip-bas-")
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+}
+
+resource "azurerm_bastion_host" "hub_bastion" {
+  count               = var.enable_bastion ? 1 : 0
+  name                = replace(var.bastion_vnet_name, "-vnet-", "-bas-")
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  ip_configuration {
+    name                 = "configuration"
+    subnet_id            = azurerm_subnet.bastion_subnet[0].id
+    public_ip_address_id = azurerm_public_ip.bastion_pip[0].id
+  }
+
+  depends_on = [azurerm_subnet.bastion_subnet, azurerm_public_ip.bastion_pip]
+}
+
 #---------------------------------------
 # Subnets
 #---------------------------------------
@@ -686,6 +735,90 @@ resource "azurerm_monitor_data_collection_rule_association" "dc_base_monitoring_
 #---------------------------------------
 # VNet Peering: Hub to Spokes (Prod and NonProd)
 #---------------------------------------
+
+resource "azurerm_virtual_network_peering" "bastion_to_hub" {
+  count                     = var.enable_bastion ? 1 : 0
+  name                      = "m3i-hub-bastion-eus2-peering-to-hub-eus2"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.bastion_vnet[0].name
+  remote_virtual_network_id = azurerm_virtual_network.hub_vnet.id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+resource "azurerm_virtual_network_peering" "hub_to_bastion" {
+  count                     = var.enable_bastion ? 1 : 0
+  name                      = "m3i-hub-prod-eus2-peering-to-bastion-eus2"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.hub_vnet.name
+  remote_virtual_network_id = azurerm_virtual_network.bastion_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+resource "azurerm_virtual_network_peering" "bastion_to_spoke_prod" {
+  count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-hub-bastion-eus2-peering-to-lz-prod"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.bastion_vnet[0].name
+  remote_virtual_network_id = data.azurerm_virtual_network.spoke_prod_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+resource "azurerm_virtual_network_peering" "spoke_prod_to_bastion" {
+  count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-lz-prod-eus2-peering-to-bastion-eus2"
+  resource_group_name       = "m3i-lz-prod-eus2-rg-vnet"
+  virtual_network_name      = data.azurerm_virtual_network.spoke_prod_vnet[0].name
+  remote_virtual_network_id = azurerm_virtual_network.bastion_vnet[0].id
+  provider                  = azurerm.spoke_prod
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+resource "azurerm_virtual_network_peering" "bastion_to_spoke_nonprod" {
+  count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-hub-bastion-eus2-peering-to-lz-nonprod"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.bastion_vnet[0].name
+  remote_virtual_network_id = data.azurerm_virtual_network.spoke_nonprod_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+resource "azurerm_virtual_network_peering" "spoke_nonprod_to_bastion" {
+  count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-lz-nonprod-eus2-peering-to-bastion-eus2"
+  resource_group_name       = "m3i-lz-nonprod-eus2-rg-vnet"
+  virtual_network_name      = data.azurerm_virtual_network.spoke_nonprod_vnet[0].name
+  remote_virtual_network_id = azurerm_virtual_network.bastion_vnet[0].id
+  provider                  = azurerm.spoke_nonprod
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
 
 # Data source to lookup Prod spoke VNet
 data "azurerm_virtual_network" "spoke_prod_vnet" {
