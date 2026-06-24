@@ -147,7 +147,7 @@ resource "azurerm_route_table" "spoke_vm_rt" {
 
   # Default route to hub firewall
   route {
-    name           = "default-to-hub-firewall"
+    name           = "m3i-eus2-default-to-hub-firewall"
     address_prefix = "0.0.0.0/0"
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = var.hub_firewall_private_ip
@@ -169,7 +169,7 @@ resource "azurerm_route_table" "spoke_app_rt" {
   tags                = merge(local.tags, var.common_tags)
 
   route {
-    name           = "default-to-hub-firewall"
+    name           = "m3i-eus2-default-to-hub-firewall"
     address_prefix = "0.0.0.0/0"
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = var.hub_firewall_private_ip
@@ -191,7 +191,7 @@ resource "azurerm_route_table" "spoke_db_rt" {
   tags                = merge(local.tags, var.common_tags)
 
   route {
-    name           = "default-to-hub-firewall"
+    name           = "m3i-eus2-default-to-hub-firewall"
     address_prefix = "0.0.0.0/0"
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = var.hub_firewall_private_ip
@@ -201,6 +201,28 @@ resource "azurerm_route_table" "spoke_db_rt" {
 resource "azurerm_subnet_route_table_association" "spoke_db_rt_assoc" {
   subnet_id      = azurerm_subnet.spoke_db_subnet.id
   route_table_id = azurerm_route_table.spoke_db_rt.id
+  provider       = azurerm.spoke
+}
+
+# Private Endpoints Subnet Route Table
+resource "azurerm_route_table" "spoke_pe_rt" {
+  name                = "m3i-lz-nonprod-eus2-rt-pe-01"
+  resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.spoke
+  tags                = merge(local.tags, var.common_tags)
+
+  route {
+    name                   = "m3i-eus2-default-to-hub-firewall"
+    address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = var.hub_firewall_private_ip
+  }
+}
+
+resource "azurerm_subnet_route_table_association" "spoke_pe_rt_assoc" {
+  subnet_id      = azurerm_subnet.spoke_private_endpoints_subnet.id
+  route_table_id = azurerm_route_table.spoke_pe_rt.id
   provider       = azurerm.spoke
 }
 

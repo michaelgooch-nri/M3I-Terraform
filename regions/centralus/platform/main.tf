@@ -149,13 +149,77 @@ resource "azurerm_route_table" "hub_shared_services_rt" {
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
-  # Routes will be added after firewall deployment
+  route {
+    name                   = "m3i-cus-shared-to-hub-firewall"
+    address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
 resource "azurerm_subnet_route_table_association" "hub_shared_services_rt_assoc" {
   subnet_id      = azurerm_subnet.hub_shared_services_subnet.id
   route_table_id = azurerm_route_table.hub_shared_services_rt.id
+  provider       = azurerm.platform
+}
+
+resource "azurerm_route_table" "hub_private_endpoints_rt" {
+  name                = "m3i-hub-prod-cus-rt-snet-pe-01"
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  route {
+    name                   = "m3i-cus-pe-to-hub-firewall"
+    address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_subnet_route_table_association" "hub_private_endpoints_rt_assoc" {
+  subnet_id      = azurerm_subnet.hub_private_endpoints_subnet.id
+  route_table_id = azurerm_route_table.hub_private_endpoints_rt.id
+  provider       = azurerm.platform
+}
+
+resource "azurerm_route_table" "hub_firewall_rt" {
+  name                = "m3i-hub-prod-cus-rt-snet-azfw-01"
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  # Force all Azure Firewall egress to Cato vSocket LAN IP.
+  route {
+    name                   = "m3i-cus-default-to-cato-vsocket"
+    address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = cidrhost(var.subnets.cato_lan.address_prefixes[0], 4)
+  }
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_route" "hub_firewall_to_other_region" {
+  count               = var.other_region_firewall_private_ip != "" ? 1 : 0
+  name                = "m3i-cus-to-eus2-firewall"
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  route_table_name    = azurerm_route_table.hub_firewall_rt.name
+  address_prefix      = "10.101.0.0/16"
+  next_hop_type       = "VirtualAppliance"
+  next_hop_in_ip_address = var.other_region_firewall_private_ip
+  provider            = azurerm.platform
+}
+
+resource "azurerm_subnet_route_table_association" "hub_firewall_rt_assoc" {
+  subnet_id      = azurerm_subnet.hub_firewall_subnet.id
+  route_table_id = azurerm_route_table.hub_firewall_rt.id
   provider       = azurerm.platform
 }
 
@@ -206,6 +270,25 @@ resource "azurerm_firewall" "hub_firewall" {
     azurerm_firewall_policy.hub_firewall_policy,
     azurerm_subnet.hub_firewall_subnet
   ]
+}
+
+# Reserve first usable IP in Cato LAN subnet for future vSocket VM.
+resource "azurerm_network_interface" "cato_vsocket_lan_nic" {
+  name                = "m3i-hub-prod-cus-nic-cato-lan-01"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  provider            = azurerm.platform
+  enable_ip_forwarding = true
+  tags                = merge(local.tags, var.common_tags)
+
+  ip_configuration {
+    name                          = "ipconfig1"
+    subnet_id                     = azurerm_subnet.hub_cato_lan_subnet.id
+    private_ip_address_allocation = "Static"
+    private_ip_address            = cidrhost(var.subnets.cato_lan.address_prefixes[0], 4)
+  }
+
+  depends_on = [azurerm_subnet.hub_cato_lan_subnet]
 }
 
 #---------------------------------------

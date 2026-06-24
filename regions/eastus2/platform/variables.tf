@@ -220,6 +220,12 @@ variable "other_region_hub_resource_group" {
   default     = ""
 }
 
+variable "other_region_firewall_private_ip" {
+  description = "Private IP of the other region Azure Firewall for inter-region routing"
+  type        = string
+  default     = ""
+}
+
 variable "common_tags" {
   description = "Common tags to apply to all resources (overrides locals if provided)"
   type        = map(string)
