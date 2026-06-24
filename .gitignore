@@ -1,0 +1,37 @@
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Crash dumps
+crash.log
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI args
+.terraformrc
+terraform.rc
+
+# Plan files (optional - can be committed if needed, but often excluded)
+*.tfplan
+
+# macOS
+.DS_Store
+*.pem

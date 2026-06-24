@@ -1,0 +1,562 @@
+# M3I Platform Hub - CentralUS
+# Main Resource Definitions for Hub Networking, Firewall, and Shared Services
+
+#---------------------------------------
+# Data Sources
+#---------------------------------------
+
+data "azurerm_client_config" "current" {
+  provider = azurerm.platform
+}
+
+#---------------------------------------
+# Resource Groups
+#---------------------------------------
+
+resource "azurerm_resource_group" "hub_resource_groups" {
+  for_each = local.rgs
+
+  name     = each.value.name
+  location = var.location
+  provider = azurerm.platform
+  tags     = merge(local.tags, var.common_tags)
+}
+
+#---------------------------------------
+# Virtual Network
+#---------------------------------------
+
+resource "azurerm_virtual_network" "hub_vnet" {
+  name                = local.hub_vnet_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  address_space       = [var.hub_vnet_address_space]
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+#---------------------------------------
+# Subnets
+#---------------------------------------
+
+resource "azurerm_subnet" "hub_gateway_subnet" {
+  name                 = var.subnets.gateway.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.gateway.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Cato LAN Subnet
+resource "azurerm_subnet" "hub_cato_lan_subnet" {
+  name                 = var.subnets.cato_lan.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.cato_lan.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Cato WAN Subnet
+resource "azurerm_subnet" "hub_cato_wan_subnet" {
+  name                 = var.subnets.cato_wan.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.cato_wan.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Cato MGMT Subnet
+resource "azurerm_subnet" "hub_cato_mgmt_subnet" {
+  name                 = var.subnets.cato_mgmt.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.cato_mgmt.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Azure Firewall Subnet (required specific name)
+resource "azurerm_subnet" "hub_firewall_subnet" {
+  name                 = var.subnets.firewall.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.firewall.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Shared Services Subnet
+resource "azurerm_subnet" "hub_shared_services_subnet" {
+  name                 = var.subnets.shared_services.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.shared_services.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Private Endpoints Subnet
+resource "azurerm_subnet" "hub_private_endpoints_subnet" {
+  name                 = var.subnets.private_endpoints.name
+  resource_group_name  = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  address_prefixes     = var.subnets.private_endpoints.address_prefixes
+  virtual_network_name = azurerm_virtual_network.hub_vnet.name
+  provider             = azurerm.platform
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+#---------------------------------------
+# Network Security Groups (NSG)
+#---------------------------------------
+
+resource "azurerm_network_security_group" "hub_shared_services_nsg" {
+  name                = var.subnets.shared_services.nsg_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  # Add ingress/egress rules as needed for your environment
+  # Example: allow inter-vnet communication, DNS, etc.
+}
+
+resource "azurerm_subnet_network_security_group_association" "hub_shared_services_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.hub_shared_services_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_shared_services_nsg.id
+  provider                  = azurerm.platform
+}
+
+#---------------------------------------
+# Route Tables (UDRs)
+#---------------------------------------
+
+resource "azurerm_route_table" "hub_shared_services_rt" {
+  name                = var.subnets.shared_services.rt_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  # Routes will be added after firewall deployment
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_subnet_route_table_association" "hub_shared_services_rt_assoc" {
+  subnet_id      = azurerm_subnet.hub_shared_services_subnet.id
+  route_table_id = azurerm_route_table.hub_shared_services_rt.id
+  provider       = azurerm.platform
+}
+
+#---------------------------------------
+# Azure Firewall
+#---------------------------------------
+
+resource "azurerm_public_ip" "hub_firewall_pip" {
+  name                = local.hub_fw_pip_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+}
+
+resource "azurerm_firewall_policy" "hub_firewall_policy" {
+  name                     = local.hub_fw_policy_name
+  location                 = var.location
+  resource_group_name      = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  provider                 = azurerm.platform
+  sku                      = var.firewall_config.sku_tier
+  threat_intelligence_mode = var.firewall_config.threat_intelligence_mode
+  tags                     = merge(local.tags, var.common_tags)
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_firewall" "hub_firewall" {
+  name                = local.hub_fw_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  sku_name            = var.firewall_config.sku_name
+  sku_tier            = var.firewall_config.sku_tier
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  ip_configuration {
+    name                 = "fw-ipconfig"
+    subnet_id            = azurerm_subnet.hub_firewall_subnet.id
+    public_ip_address_id = azurerm_public_ip.hub_firewall_pip.id
+  }
+
+  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
+
+  depends_on = [
+    azurerm_firewall_policy.hub_firewall_policy,
+    azurerm_subnet.hub_firewall_subnet
+  ]
+}
+
+#---------------------------------------
+# Firewall Policy Rules
+#---------------------------------------
+
+resource "azurerm_firewall_policy_rule_collection_group" "hub_network_rules" {
+  name               = "DefaultNetworkRuleCollectionGroup"
+  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
+  priority           = 200
+  provider           = azurerm.platform
+
+  network_rule_collection {
+    name     = "DefaultNetworkRuleCollection"
+    action   = "Allow"
+    priority = 150
+    
+    rule {
+      name                  = "allow-dns"
+      description           = "Allow DNS traffic"
+      protocols             = ["UDP"]
+      source_addresses      = ["*"]
+      destination_ports     = ["53"]
+      destination_addresses = ["*"]
+    }
+
+    # Placeholder: Allow hub to spoke traffic (update with actual IP ranges)
+    rule {
+      name                  = "allow-hub-to-spokes"
+      description           = "Allow hub to spoke VNet traffic"
+      protocols             = ["TCP", "UDP", "ICMP"]
+      source_addresses      = [var.hub_vnet_address_space]
+      destination_ports     = ["*"]
+      destination_addresses = ["10.0.0.0/8"]  # Placeholder for spoke ranges
+    }
+  }
+
+  depends_on = [azurerm_firewall_policy.hub_firewall_policy]
+}
+
+resource "azurerm_firewall_policy_rule_collection_group" "hub_app_rules" {
+  name               = "DefaultApplicationRuleCollectionGroup"
+  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
+  priority           = 300
+  provider           = azurerm.platform
+
+  application_rule_collection {
+    name     = "DefaultApplicationRuleCollection"
+    action   = "Allow"
+    priority = 100
+    
+    rule {
+      name        = "allow-internet"
+      description = "Allow outbound internet traffic"
+      protocols {
+        type = "Http"
+        port = 80
+      }
+      protocols {
+        type = "Https"
+        port = 443
+      }
+      destination_fqdns = ["*"]
+      source_addresses  = ["*"]
+    }
+  }
+
+  depends_on = [azurerm_firewall_policy.hub_firewall_policy]
+}
+
+#---------------------------------------
+# NAT Gateway (for outbound internet access)
+#---------------------------------------
+
+resource "azurerm_public_ip" "hub_natgw_pip" {
+  name                = local.hub_natgw_pip_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+}
+
+resource "azurerm_nat_gateway" "hub_natgw" {
+  name                = local.hub_natgw_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  location            = var.location
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  depends_on = [azurerm_public_ip.hub_natgw_pip]
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "hub_natgw_pip_assoc" {
+  nat_gateway_id       = azurerm_nat_gateway.hub_natgw.id
+  public_ip_address_id = azurerm_public_ip.hub_natgw_pip.id
+  provider             = azurerm.platform
+}
+
+resource "azurerm_subnet_nat_gateway_association" "hub_firewall_subnet_natgw" {
+  subnet_id      = azurerm_subnet.hub_firewall_subnet.id
+  nat_gateway_id = azurerm_nat_gateway.hub_natgw.id
+  provider       = azurerm.platform
+}
+
+#---------------------------------------
+# Log Analytics Workspace
+#---------------------------------------
+
+resource "azurerm_log_analytics_workspace" "hub_laws" {
+  count               = var.enable_log_analytics ? 1 : 0
+  name                = local.hub_laws_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_laws_rg"].name
+  location            = var.location
+  sku                 = "PerGB2018"
+  retention_in_days   = var.log_analytics_retention_days
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+}
+
+resource "azurerm_monitor_diagnostic_setting" "hub_firewall_diagnostics" {
+  count                      = var.enable_log_analytics ? 1 : 0
+  name                       = "fw-diagnostics"
+  target_resource_id         = azurerm_firewall.hub_firewall.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.hub_laws[0].id
+  provider                   = azurerm.platform
+
+  enabled_log {
+    category = "AzureFirewallNetworkRule"
+  }
+
+  enabled_log {
+    category = "AzureFirewallApplicationRule"
+  }
+
+  metric {
+    category = "AllMetrics"
+  }
+}
+
+#---------------------------------------
+# Recovery Services Vault
+#---------------------------------------
+
+resource "azurerm_recovery_services_vault" "hub_rsv" {
+  count               = var.enable_backup ? 1 : 0
+  name                = local.hub_rsv_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_rsv_rg"].name
+  location            = var.location
+  sku                 = "Standard"
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  soft_delete_enabled           = true
+  public_network_access_enabled = true
+}
+
+resource "azurerm_backup_policy_vm" "hub_backup_policy" {
+  count               = var.enable_backup ? 1 : 0
+  name                = local.hub_rsv_backup_policy_name
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_rsv_rg"].name
+  recovery_vault_name = azurerm_recovery_services_vault.hub_rsv[0].name
+  provider            = azurerm.platform
+
+  timezone = "UTC"
+
+  backup {
+    frequency = "Daily"
+    time      = "03:00"
+  }
+
+  retention_daily {
+    count = 7
+  }
+}
+
+#---------------------------------------
+# Azure Key Vault
+#---------------------------------------
+
+resource "azurerm_key_vault" "hub_keyvault" {
+  count               = var.enable_key_vault ? 1 : 0
+  name                = "m3i-hub-prod-cus-kv"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = var.key_vault_sku
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  enabled_for_deployment          = true
+  enabled_for_disk_encryption     = true
+  enabled_for_template_deployment = true
+  purge_protection_enabled        = true
+  soft_delete_retention_days      = 7
+
+  depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_key_vault_access_policy" "hub_keyvault_policy" {
+  count       = var.enable_key_vault ? 1 : 0
+  key_vault_id = azurerm_key_vault.hub_keyvault[0].id
+  tenant_id   = data.azurerm_client_config.current.tenant_id
+  object_id   = data.azurerm_client_config.current.object_id
+  provider    = azurerm.platform
+
+  key_permissions = [
+    "Backup", "Create", "Decrypt", "Delete", "Encrypt", "Get", "Import", "List", "Purge", "Recover", "Restore", "Sign", "UnwrapKey", "Update", "Verify", "WrapKey"
+  ]
+
+  secret_permissions = [
+    "Backup", "Delete", "Get", "List", "Purge", "Recover", "Restore", "Set"
+  ]
+
+  certificate_permissions = [
+    "Backup", "Create", "Delete", "DeleteIssuers", "Get", "GetIssuers", "Import", "List", "ListIssuers", "Purge", "Recover", "Restore", "SetIssuers", "Update"
+  ]
+}
+
+#---------------------------------------
+# Domain Controller VMs
+#---------------------------------------
+
+# Generate random password for DCs if not provided
+resource "random_password" "dc_admin_password" {
+  count       = var.enable_dc_vms && var.admin_password == "" ? 1 : 0
+  length      = 20
+  special     = true
+  override_special = "!@#$%^&*()_+-=[]{}|:;<>?,./"
+}
+
+# Store DC admin password in Key Vault
+resource "azurerm_key_vault_secret" "dc_admin_password" {
+  count           = var.enable_key_vault && var.enable_dc_vms ? 1 : 0
+  name            = "dc-admin-password"
+  value           = var.admin_password != "" ? var.admin_password : random_password.dc_admin_password[0].result
+  key_vault_id    = azurerm_key_vault.hub_keyvault[0].id
+  provider        = azurerm.platform
+}
+
+# Network Interfaces for DC VMs
+resource "azurerm_network_interface" "dc_nic" {
+  count               = var.enable_dc_vms ? var.dc_vm_count : 0
+  name                = "az-cus-dc0${count.index + 1}-nic"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  ip_configuration {
+    name                          = "testconfiguration1"
+    subnet_id                     = azurerm_subnet.hub_shared_services_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+
+  depends_on = [azurerm_subnet.hub_shared_services_subnet]
+}
+
+# Associate NSG with DC NICs
+resource "azurerm_network_interface_security_group_association" "dc_nsg_assoc" {
+  count                    = var.enable_dc_vms ? var.dc_vm_count : 0
+  network_interface_id      = azurerm_network_interface.dc_nic[count.index].id
+  network_security_group_id = azurerm_network_security_group.hub_shared_services_nsg.id
+  provider                  = azurerm.platform
+}
+
+# Domain Controller VMs
+resource "azurerm_windows_virtual_machine" "dc_vm" {
+  count               = var.enable_dc_vms ? var.dc_vm_count : 0
+  name                = "az-cus-dc0${count.index + 1}"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
+
+  admin_username = "azureuser"
+  admin_password = var.admin_password != "" ? var.admin_password : random_password.dc_admin_password[0].result
+
+  vm_size = var.dc_vm_size
+
+  network_interface_ids = [azurerm_network_interface.dc_nic[count.index].id]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  source_image_reference {
+    publisher = var.dc_os_image_publisher
+    offer     = var.dc_os_image_offer
+    sku       = var.dc_os_image_sku
+    version   = var.dc_os_image_version
+  }
+
+  depends_on = [
+    azurerm_network_interface.dc_nic,
+    azurerm_network_interface_security_group_association.dc_nsg_assoc
+  ]
+}
+
+#---------------------------------------
+# VNet Peering: Hub to Spokes (Prod and NonProd)
+#---------------------------------------
+
+# Data source to lookup Prod spoke VNet
+data "azurerm_virtual_network" "spoke_prod_vnet" {
+  count               = var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
+  name                = "m3i-lz-prod-cus-vnet-01"
+  resource_group_name = "m3i-lz-prod-cus-rg-vnet"
+  provider            = azurerm.spoke_prod
+}
+
+# Data source to lookup NonProd spoke VNet
+data "azurerm_virtual_network" "spoke_nonprod_vnet" {
+  count               = var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
+  name                = "m3i-lz-nonprod-cus-vnet-01"
+  resource_group_name = "m3i-lz-nonprod-cus-rg-vnet"
+  provider            = azurerm.spoke_nonprod
+}
+
+# Hub to Spoke Prod peering
+resource "azurerm_virtual_network_peering" "hub_to_spoke_prod" {
+  count                     = var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-hub-prod-cus-peering-to-lz-prod"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.hub_vnet.name
+  remote_virtual_network_id = data.azurerm_virtual_network.spoke_prod_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = true
+  use_remote_gateways          = false
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Hub to Spoke NonProd peering
+resource "azurerm_virtual_network_peering" "hub_to_spoke_nonprod" {
+  count                     = var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
+  name                      = "m3i-hub-prod-cus-peering-to-lz-nonprod"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.hub_vnet.name
+  remote_virtual_network_id = data.azurerm_virtual_network.spoke_nonprod_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = true
+  use_remote_gateways          = false
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
