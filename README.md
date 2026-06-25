@@ -111,7 +111,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - OS default: Windows Server 2025 Datacenter
   - Admin password stored in hub Key Vault secret `dc-admin-password`
   - Base monitoring enabled via Azure Monitor Agent + Data Collection Rule to regional Log Analytics workspace
-    - Windows Event logs: Application, System, Security (audit)
+    - Windows Event logs: Application, System
     - Performance counters: CPU, memory, disk free space/latency, network throughput (60s)
 
 ### Spoke Deployments
@@ -120,6 +120,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Route tables and associations for VM/DB/Private Endpoints subnets
 - Default route `0.0.0.0/0` to hub firewall (auto-resolved from hub remote state; optional override with `hub_firewall_private_ip`)
 - Spoke-to-hub peering
+  - `use_remote_gateways = false` (hub VPN gateway is not deployed in current baseline)
 - Key Vault per spoke (optional via flag)
 
 ## Repository Layout
@@ -185,6 +186,7 @@ Script location: `scripts/deploy-two-pass.ps1`
 
 Behavior details:
 - In `plan` and `apply` modes, the script runs backend preflight checks first (Azure subscription context, `Microsoft.Storage` availability, backend RG, storage account, and `tfstate` container).
+- Before each root run, the script explicitly selects that root's backend subscription (`az account set`) prior to `terraform init`.
 - The script runs `terraform init` and `terraform validate` in every root before `plan` or `apply`.
 - Use `-Mode validate-only` for quick dry checks without backend/state access (`terraform init -backend=false` + `terraform validate` across all roots).
 - Use `-Mode plan` for dry run across all phases.
@@ -275,10 +277,10 @@ This means:
 |---|---|---|---|
 | CentralUS Hub | m3i-hub-prod-cus-rt-snet-shared-services-01 | m3i-cus-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-shared-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-shared-services-01 |
 | CentralUS Hub | m3i-hub-prod-cus-rt-snet-pe-01 | m3i-cus-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-pe-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-pe-01 |
-| CentralUS Hub | m3i-hub-prod-cus-rt-snet-azfw-01 | m3i-cus-default-to-cato-vsocket: 0.0.0.0/0 -> VirtualAppliance (Cato LAN reserved IP); m3i-cus-to-eus2-firewall: 10.101.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
+| CentralUS Hub | m3i-hub-prod-cus-rt-snet-azfw-01 | m3i-cus-default-to-internet: 0.0.0.0/0 -> Internet (required for AzureFirewallSubnet); m3i-cus-to-eus2-firewall: 10.101.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
 | EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-shared-services-01 | m3i-eus2-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-shared-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-shared-services-01 |
 | EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-pe-01 | m3i-eus2-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-pe-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-pe-01 |
-| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-azfw-01 | m3i-eus2-default-to-cato-vsocket: 0.0.0.0/0 -> VirtualAppliance (Cato LAN reserved IP); m3i-eus2-to-cus-firewall: 10.100.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
+| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-azfw-01 | m3i-eus2-default-to-internet: 0.0.0.0/0 -> Internet (required for AzureFirewallSubnet); m3i-eus2-to-cus-firewall: 10.100.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-vm-01 |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-db-01 |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-pe-01 |

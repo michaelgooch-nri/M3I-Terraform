@@ -447,12 +447,11 @@ resource "azurerm_route_table" "hub_firewall_rt" {
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
-  # Force all Azure Firewall egress to Cato vSocket LAN IP.
+  # Azure requires firewall subnet default route to Internet.
   route {
-    name                   = "m3i-cus-default-to-cato-vsocket"
+    name                   = "m3i-cus-default-to-internet"
     address_prefix         = "0.0.0.0/0"
-    next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = cidrhost(var.subnets.cato_lan.address_prefixes[0], 4)
+    next_hop_type          = "Internet"
   }
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
@@ -703,18 +702,17 @@ resource "azurerm_monitor_data_collection_rule" "dc_base_monitoring" {
   }
 
   data_flow {
-    streams      = ["Microsoft-WindowsEvent", "Microsoft-Perf"]
+    streams      = ["Microsoft-Event", "Microsoft-Perf"]
     destinations = ["dc-laws-destination"]
   }
 
   data_sources {
     windows_event_log {
       name           = "dc-windows-events"
-      streams        = ["Microsoft-WindowsEvent"]
+      streams        = ["Microsoft-Event"]
       x_path_queries = [
         "Application!*[System[(Level=1 or Level=2 or Level=3)]]",
-        "System!*[System[(Level=1 or Level=2 or Level=3)]]",
-        "Security!*[System[(band(Keywords,4503599627370496))]]"
+        "System!*[System[(Level=1 or Level=2 or Level=3)]]"
       ]
     }
 
@@ -841,6 +839,10 @@ resource "azurerm_key_vault_secret" "dc_admin_password" {
   value           = var.admin_password != "" ? var.admin_password : random_password.dc_admin_password[0].result
   key_vault_id    = azurerm_key_vault.hub_keyvault[0].id
   provider        = azurerm.platform
+
+  depends_on = [
+    azurerm_key_vault_access_policy.hub_keyvault_policy
+  ]
 }
 
 # Network Interfaces for DC VMs

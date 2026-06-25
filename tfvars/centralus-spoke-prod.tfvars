@@ -7,6 +7,7 @@ subnets = {
   private_endpoints = {
     name             = "m3i-lz-prod-cus-snet-pe-01"
     address_prefixes = ["10.100.4.0/26"]
+    nsg_name         = "m3i-lz-prod-cus-nsg-pe-01"
   }
   vm = {
     name             = "m3i-lz-prod-cus-snet-vm-01"

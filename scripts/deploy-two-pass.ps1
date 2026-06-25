@@ -195,6 +195,12 @@ function Invoke-Terraform {
       return
     }
 
+    $backendCfg = Get-BackendConfig -RelativeDir $RelativeDir
+    & az account set --subscription $backendCfg.SubscriptionId --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+      throw "[$Phase][$RelativeDir] failed to select subscription $($backendCfg.SubscriptionId) before terraform operations"
+    }
+
     terraform init
     if ($LASTEXITCODE -ne 0) {
       throw "[$Phase][$RelativeDir] terraform init failed"
