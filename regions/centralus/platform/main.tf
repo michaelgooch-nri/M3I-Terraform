@@ -393,6 +393,13 @@ resource "azurerm_route_table" "hub_shared_services_rt" {
     next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
   }
 
+  route {
+    name                   = "m3i-cus-shared-to-eus2-via-hub-firewall"
+    address_prefix         = "10.101.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
@@ -412,6 +419,13 @@ resource "azurerm_route_table" "hub_private_endpoints_rt" {
   route {
     name                   = "m3i-cus-pe-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
+  route {
+    name                   = "m3i-cus-pe-to-eus2-via-hub-firewall"
+    address_prefix         = "10.101.0.0/16"
     next_hop_type          = "VirtualAppliance"
     next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
   }
@@ -552,14 +566,19 @@ resource "azurerm_firewall_policy_rule_collection_group" "hub_network_rules" {
       destination_addresses = ["*"]
     }
 
-    # Placeholder: Allow hub to spoke traffic (update with actual IP ranges)
     rule {
       name                  = "allow-hub-to-spokes"
       description           = "Allow hub to spoke VNet traffic"
       protocols             = ["TCP", "UDP", "ICMP"]
-      source_addresses      = [var.hub_vnet_address_space]
+      source_addresses      = [
+        "10.100.0.0/16",
+        "10.101.0.0/16"
+      ]
       destination_ports     = ["*"]
-      destination_addresses = ["10.0.0.0/8"]  # Placeholder for spoke ranges
+      destination_addresses = [
+        "10.100.0.0/16",
+        "10.101.0.0/16"
+      ]
     }
   }
 
@@ -1033,6 +1052,31 @@ resource "azurerm_virtual_network_peering" "hub_to_spoke_nonprod" {
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.hub_vnet.name
   remote_virtual_network_id = data.azurerm_virtual_network.spoke_nonprod_vnet[0].id
+  provider                  = azurerm.platform
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = true
+  allow_gateway_transit        = true
+  use_remote_gateways          = false
+
+  depends_on = [azurerm_virtual_network.hub_vnet]
+}
+
+# Data source to lookup EastUS2 hub VNet
+data "azurerm_virtual_network" "hub_eus2_vnet" {
+  count               = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" ? 1 : 0
+  name                = var.other_region_hub_vnet_name
+  resource_group_name = var.other_region_hub_resource_group
+  provider            = azurerm.platform
+}
+
+# CentralUS Hub to EastUS2 Hub peering
+resource "azurerm_virtual_network_peering" "hub_to_hub_eus2" {
+  count                     = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" ? 1 : 0
+  name                      = "m3i-hub-prod-cus-peering-to-hub-eus2"
+  resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  virtual_network_name      = azurerm_virtual_network.hub_vnet.name
+  remote_virtual_network_id = data.azurerm_virtual_network.hub_eus2_vnet[0].id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true

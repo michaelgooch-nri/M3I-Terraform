@@ -19,7 +19,7 @@ data "terraform_remote_state" "platform_hub" {
   backend = "azurerm"
   config = {
     resource_group_name  = "m3i-hub-prod-rg-tf-eus2"
-    storage_account_name = "m3ihubprodstortfcus"
+    storage_account_name = "m3ihubprodstortfeus2"
     container_name       = "tfstate"
     key                  = "m3i-platform-eus2.tfstate"
   }
@@ -228,6 +228,13 @@ resource "azurerm_route_table" "spoke_vm_rt" {
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
+
+  route {
+    name                   = "m3i-eus2-to-cus-via-hub-firewall"
+    address_prefix         = "10.100.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
 }
 
 resource "azurerm_subnet_route_table_association" "spoke_vm_rt_assoc" {
@@ -250,6 +257,13 @@ resource "azurerm_route_table" "spoke_db_rt" {
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
+
+  route {
+    name                   = "m3i-eus2-to-cus-via-hub-firewall"
+    address_prefix         = "10.100.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
 }
 
 resource "azurerm_subnet_route_table_association" "spoke_db_rt_assoc" {
@@ -269,6 +283,13 @@ resource "azurerm_route_table" "spoke_pe_rt" {
   route {
     name                   = "m3i-eus2-default-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
+
+  route {
+    name                   = "m3i-eus2-to-cus-via-hub-firewall"
+    address_prefix         = "10.100.0.0/16"
     next_hop_type          = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }

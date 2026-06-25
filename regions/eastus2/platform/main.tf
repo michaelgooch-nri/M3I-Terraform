@@ -393,6 +393,13 @@ resource "azurerm_route_table" "hub_shared_services_rt" {
     next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
   }
 
+  route {
+    name                   = "m3i-eus2-shared-to-cus-via-hub-firewall"
+    address_prefix         = "10.100.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
@@ -412,6 +419,13 @@ resource "azurerm_route_table" "hub_private_endpoints_rt" {
   route {
     name                   = "m3i-eus2-pe-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+
+  route {
+    name                   = "m3i-eus2-pe-to-cus-via-hub-firewall"
+    address_prefix         = "10.100.0.0/16"
     next_hop_type          = "VirtualAppliance"
     next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
   }
@@ -552,14 +566,19 @@ resource "azurerm_firewall_policy_rule_collection_group" "hub_network_rules" {
       destination_addresses = ["*"]
     }
 
-    # Placeholder: Allow hub to spoke traffic (update with actual IP ranges)
     rule {
       name                  = "allow-hub-to-spokes"
       description           = "Allow hub to spoke VNet traffic"
       protocols             = ["TCP", "UDP", "ICMP"]
-      source_addresses      = [var.hub_vnet_address_space]
+      source_addresses      = [
+        "10.100.0.0/16",
+        "10.101.0.0/16"
+      ]
       destination_ports     = ["*"]
-      destination_addresses = ["10.8.0.0/8"]  # Placeholder for spoke ranges
+      destination_addresses = [
+        "10.100.0.0/16",
+        "10.101.0.0/16"
+      ]
     }
   }
 

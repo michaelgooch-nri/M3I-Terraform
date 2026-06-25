@@ -228,6 +228,13 @@ resource "azurerm_route_table" "spoke_vm_rt" {
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
+
+  route {
+    name                   = "m3i-cus-to-eus2-via-hub-firewall"
+    address_prefix         = "10.101.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
 }
 
 resource "azurerm_subnet_route_table_association" "spoke_vm_rt_assoc" {
@@ -250,6 +257,13 @@ resource "azurerm_route_table" "spoke_db_rt" {
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }
+
+  route {
+    name                   = "m3i-cus-to-eus2-via-hub-firewall"
+    address_prefix         = "10.101.0.0/16"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
 }
 
 resource "azurerm_subnet_route_table_association" "spoke_db_rt_assoc" {
@@ -269,6 +283,13 @@ resource "azurerm_route_table" "spoke_pe_rt" {
   route {
     name                   = "m3i-cus-default-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = local.hub_firewall_private_ip_effective
+  }
+
+  route {
+    name                   = "m3i-cus-to-eus2-via-hub-firewall"
+    address_prefix         = "10.101.0.0/16"
     next_hop_type          = "VirtualAppliance"
     next_hop_in_ip_address = local.hub_firewall_private_ip_effective
   }

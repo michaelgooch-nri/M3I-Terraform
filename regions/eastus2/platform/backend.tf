@@ -11,6 +11,6 @@
 # Storage account name must be lowercase, globally unique, and 3-24 characters
 # Example creation:
 #   az group create --name m3i-hub-prod-rg-tf-eus2 --location EastUS2
-#   az storage account create --name m3ihubprodstortfcus --resource-group m3i-hub-prod-rg-tf-eus2 --location EastUS2 --sku Standard_LRS
-#   az storage container create --name tfstate --account-name m3ihubprodstortfcus
+#   az storage account create --name m3ihubprodstortfeus2 --resource-group m3i-hub-prod-rg-tf-eus2 --location EastUS2 --sku Standard_LRS
+#   az storage container create --name tfstate --account-name m3ihubprodstortfeus2
 

@@ -3,5 +3,5 @@
 
 # NOTE: Create the storage account and container manually beforehand:
 #   az group create --name m3i-spoke-prod-rg-tf-eus2 --location EastUS2
-#   az storage account create --name m3ispokeprodstortfcus --resource-group m3i-spoke-prod-rg-tf-eus2 --location EastUS2 --sku Standard_LRS
-#   az storage container create --name tfstate --account-name m3ispokeprodstortfcus
+#   az storage account create --name m3ispokeprodstortfeus2 --resource-group m3i-spoke-prod-rg-tf-eus2 --location EastUS2 --sku Standard_LRS
+#   az storage container create --name tfstate --account-name m3ispokeprodstortfeus2

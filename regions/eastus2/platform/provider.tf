@@ -17,10 +17,11 @@ terraform {
   # Note: Backend configuration will be set separately with -backend-config flags or init command
   backend "azurerm" {
     resource_group_name  = "m3i-hub-prod-rg-tf-eus2"
-    storage_account_name = "m3ihubprodstortfcus"
+    storage_account_name = "m3ihubprodstortfeus2"
     container_name       = "tfstate"
     key                  = "m3i-platform-eus2.tfstate"
-    subscription_id      = "PLATFORM-SUBSCRIPTION-ID-HERE"
+    subscription_id      = "5f6a8c70-73ff-4df7-88f2-5484fbb14aff"
+    tenant_id            = "29fe76f0-0a1f-4673-9d42-3f8dafc342a4"
   }
 }
 
@@ -28,12 +29,14 @@ terraform {
 provider "azurerm" {
   features {}
   subscription_id = var.platform_subscription_id
+  tenant_id       = "29fe76f0-0a1f-4673-9d42-3f8dafc342a4"
 }
 
 # Aliased provider for explicit platform context
 provider "azurerm" {
   features {}
   subscription_id                 = var.platform_subscription_id
+  tenant_id                       = "29fe76f0-0a1f-4673-9d42-3f8dafc342a4"
   resource_provider_registrations = "core"
   alias                           = "platform"
 }
@@ -42,6 +45,7 @@ provider "azurerm" {
 provider "azurerm" {
   features {}
   subscription_id = var.spoke_prod_subscription_id != "" ? var.spoke_prod_subscription_id : var.platform_subscription_id
+  tenant_id       = "29fe76f0-0a1f-4673-9d42-3f8dafc342a4"
   alias           = "spoke_prod"
 }
 
@@ -49,5 +53,6 @@ provider "azurerm" {
 provider "azurerm" {
   features {}
   subscription_id = var.spoke_nonprod_subscription_id != "" ? var.spoke_nonprod_subscription_id : var.platform_subscription_id
+  tenant_id       = "29fe76f0-0a1f-4673-9d42-3f8dafc342a4"
   alias           = "spoke_nonprod"
 }

@@ -161,7 +161,7 @@ Notes:
 - Pass 1 for platform roots: set `enable_hub_to_spoke_peering = false` to create hub + Bastion + hub/bastion peerings without spoke dependencies.
 - Spokes auto-read regional hub firewall IP from hub remote state (manual `hub_firewall_private_ip` remains as optional override).
 - Pass 2 for platform roots: set `enable_hub_to_spoke_peering = true` to create both hub<->spoke and bastion<->spoke peerings.
-- Keep `enable_hub_to_hub_peering` false in CentralUS until EastUS2 hub exists (or follow your staged plan).
+- Keep `enable_hub_to_hub_peering = false` in pass 1, then enable it once both hubs exist so reciprocal hub<->hub peering is created.
 
 ### Automated Two-Pass Deployment
 
@@ -218,6 +218,20 @@ Per root, run in this order:
 
 For full-stack orchestration, prefer `scripts/deploy-two-pass.ps1`.
 
+## State Storage Accounts
+
+| Root Module | Resource Group | Storage Account | State Key | Subscription ID |
+|---|---|---|---|---|
+| CentralUS Platform | m3i-hub-prod-rg-tf-cus | m3ihubprodstortfcus | m3i-platform-cus.tfstate | 4d58273c-5176-4f3b-97d5-8d19d8ff74e8 |
+| CentralUS Spoke Prod | m3i-spoke-prod-rg-tf-cus | m3ispokeprodstortfcus | m3i-spoke-prod-cus.tfstate | 31a0c2bb-b673-4ea4-81c2-335d87ca60f8 |
+| CentralUS Spoke NonProd | m3i-spoke-nonprod-rg-tf-cus | m3ispokenonprodstortfcus | m3i-spoke-nonprod-cus.tfstate | 9bdd25f9-1dbe-4784-b629-50d4febb1000 |
+| EastUS2 Platform | m3i-hub-prod-rg-tf-eus2 | m3ihubprodstortfeus2 | m3i-platform-eus2.tfstate | 5f6a8c70-73ff-4df7-88f2-5484fbb14aff |
+| EastUS2 Spoke Prod | m3i-spoke-prod-rg-tf-eus2 | m3ispokeprodstortfeus2 | m3i-spoke-prod-eus2.tfstate | 6ab13db0-ee2a-4a60-8a42-f79fd75fe06c |
+| EastUS2 Spoke NonProd | m3i-spoke-nonprod-rg-tf-eus2 | m3ispokenonprodstortfe2 | m3i-spoke-nonprod-eus2.tfstate | e0f7a316-07ce-4882-b779-61329fa5c350 |
+
+Note:
+- EastUS2 NonProd uses `m3ispokenonprodstortfe2` to remain within Azure Storage account name length limits.
+
 ## Tagging Strategy
 
 All tagged resources use this pattern:
@@ -250,24 +264,24 @@ This means:
 
 | Scope | Route Table Name | Routes In Table | Applied To Subnet |
 |---|---|---|---|
-| CentralUS Hub | m3i-hub-prod-cus-rt-snet-shared-services-01 | m3i-cus-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-shared-services-01 |
-| CentralUS Hub | m3i-hub-prod-cus-rt-snet-pe-01 | m3i-cus-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-pe-01 |
+| CentralUS Hub | m3i-hub-prod-cus-rt-snet-shared-services-01 | m3i-cus-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-shared-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-shared-services-01 |
+| CentralUS Hub | m3i-hub-prod-cus-rt-snet-pe-01 | m3i-cus-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-pe-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-pe-01 |
 | CentralUS Hub | m3i-hub-prod-cus-rt-snet-azfw-01 | m3i-cus-default-to-cato-vsocket: 0.0.0.0/0 -> VirtualAppliance (Cato LAN reserved IP); m3i-cus-to-eus2-firewall: 10.101.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
-| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-shared-services-01 | m3i-eus2-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-shared-services-01 |
-| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-pe-01 | m3i-eus2-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-pe-01 |
+| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-shared-services-01 | m3i-eus2-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-shared-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-shared-services-01 |
+| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-pe-01 | m3i-eus2-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-pe-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-pe-01 |
 | EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-azfw-01 | m3i-eus2-default-to-cato-vsocket: 0.0.0.0/0 -> VirtualAppliance (Cato LAN reserved IP); m3i-eus2-to-cus-firewall: 10.100.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
-| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-vm-01 |
-| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-db-01 |
-| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-pe-01 |
-| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-vm-01 |
-| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-db-01 |
-| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-pe-01 |
-| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-vm-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-vm-01 |
-| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-db-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-db-01 |
-| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-pe-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-pe-01 |
-| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-vm-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-vm-01 |
-| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-db-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-db-01 |
-| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-pe-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-pe-01 |
+| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-vm-01 |
+| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-db-01 |
+| CentralUS Spoke Prod | m3i-lz-prod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-pe-01 |
+| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-vm-01 |
+| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-db-01 |
+| CentralUS Spoke NonProd | m3i-lz-nonprod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-cus-snet-pe-01 |
+| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-vm-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-vm-01 |
+| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-db-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-db-01 |
+| EastUS2 Spoke Prod | m3i-lz-prod-eus2-rt-pe-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-eus2-snet-pe-01 |
+| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-vm-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-vm-01 |
+| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-db-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-db-01 |
+| EastUS2 Spoke NonProd | m3i-lz-nonprod-eus2-rt-pe-01 | m3i-eus2-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-eus2-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-nonprod-eus2-snet-pe-01 |
 
 ## NSG Inventory and Associations
 
@@ -337,7 +351,7 @@ By design, there are no NSGs associated to:
 
 ## Firewall Policy Rules (Current)
 
-Current Azure Firewall policy is intentionally minimal and includes placeholder allow ranges.
+Current Azure Firewall policy is intentionally minimal and now targets explicit regional /16 address blocks.
 
 ### CentralUS Hub Firewall
 
@@ -350,8 +364,12 @@ Current Azure Firewall policy is intentionally minimal and includes placeholder 
     - Destination Port: `53`
   - Rule `allow-hub-to-spokes`
     - Protocols: `TCP`, `UDP`, `ICMP`
-    - Source: `hub_vnet_address_space` (regional hub CIDR)
-    - Destination: `10.0.0.0/8` (placeholder supernet)
+    - Sources:
+      - `10.100.0.0/16` (CentralUS reserved region block)
+      - `10.101.0.0/16` (EastUS2 reserved region block)
+    - Destinations:
+      - `10.100.0.0/16` (CentralUS reserved region block)
+      - `10.101.0.0/16` (EastUS2 reserved region block)
     - Destination Ports: `*`
 - Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
 - Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
@@ -371,8 +389,12 @@ Current Azure Firewall policy is intentionally minimal and includes placeholder 
     - Destination Port: `53`
   - Rule `allow-hub-to-spokes`
     - Protocols: `TCP`, `UDP`, `ICMP`
-    - Source: `hub_vnet_address_space` (regional hub CIDR)
-    - Destination: `10.8.0.0/8` (placeholder supernet)
+    - Sources:
+      - `10.100.0.0/16` (CentralUS reserved region block)
+      - `10.101.0.0/16` (EastUS2 reserved region block)
+    - Destinations:
+      - `10.100.0.0/16` (CentralUS reserved region block)
+      - `10.101.0.0/16` (EastUS2 reserved region block)
     - Destination Ports: `*`
 - Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
 - Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
@@ -384,7 +406,8 @@ Current Azure Firewall policy is intentionally minimal and includes placeholder 
 ### Effective Behavior
 
 - DNS is broadly allowed.
-- Hub-to-spoke flows are broadly allowed using placeholder destination ranges.
+- Hub-to-spoke flows are allowed to each region's reserved `/16` block.
+- Inter-region traffic from routed spoke and hub workload subnets is forced through source-region Azure Firewall, then destination-region Azure Firewall.
 - Outbound web access is broadly allowed to all FQDNs on HTTP/HTTPS.
 - No explicit deny rules, DNAT rules, or tightly scoped spoke ranges are currently defined.
 
