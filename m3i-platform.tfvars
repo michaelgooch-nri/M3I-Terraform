@@ -1,5 +1,5 @@
 #============================================================
-# M3I-Terraform: Example TFVARS Configuration
+# M3I-Terraform: Platform TFVARS Configuration
 #============================================================
 # Copy this file and customize with your actual subscription IDs,
 # IP address spaces, and other environment-specific values.

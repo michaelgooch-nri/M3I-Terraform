@@ -7,7 +7,7 @@ This repository contains Terraform code for a multi-region Azure hub-and-spoke l
 - Terraform CLI installed (version compatible with `~> 4.x` AzureRM provider workflow in this repo)
 - Azure access to platform + spoke subscriptions
 - Backend storage accounts/containers already created for each root state
-- `example.tfvars` copied and updated with your subscription IDs and environment values
+- `m3i-platform.tfvars` copied and updated with your subscription IDs and environment values
 
 Optional but recommended:
 - PowerShell 7+ for running `scripts/deploy-two-pass.ps1`
@@ -126,7 +126,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 
 ```text
 M3I-Terraform/
-|- example.tfvars
+|- m3i-platform.tfvars
 |- IP-SPACE-PLANNING.md
 |- README.md
 |- modules/
@@ -169,10 +169,10 @@ You can run the full three-phase sequence with one command from repository root:
 
 ```powershell
 # Plan across all roots in required order
-./scripts/deploy-two-pass.ps1 -Mode plan -VarFile example.tfvars
+./scripts/deploy-two-pass.ps1 -Mode plan -VarFile m3i-platform.tfvars
 
 # Apply across all roots in required order
-./scripts/deploy-two-pass.ps1 -Mode apply -VarFile example.tfvars -AutoApprove
+./scripts/deploy-two-pass.ps1 -Mode apply -VarFile m3i-platform.tfvars -AutoApprove
 ```
 
 What the script does:
@@ -183,9 +183,12 @@ What the script does:
 Script location: `scripts/deploy-two-pass.ps1`
 
 Behavior details:
+- In `plan` and `apply` modes, the script runs backend preflight checks first (Azure subscription context, `Microsoft.Storage` availability, backend RG, storage account, and `tfstate` container).
 - The script runs `terraform init` and `terraform validate` in every root before `plan` or `apply`.
+- Use `-Mode validate-only` for quick dry checks without backend/state access (`terraform init -backend=false` + `terraform validate` across all roots).
 - Use `-Mode plan` for dry run across all phases.
 - Use `-Mode apply -AutoApprove` for non-interactive apply.
+- Errors are grouped by phase/root in output (for example: `[FAILURE] [Phase 2: Spokes][regions/eastus2/spoke-prod] ...`).
 - If one phase fails, execution stops so you can fix before continuing.
 
 ## Core Variables to Review
@@ -418,8 +421,8 @@ Current Azure Firewall policy is intentionally minimal and now targets explicit 
 Set-Location regions/centralus/platform
 terraform init
 terraform validate
-terraform plan -var-file="../../../example.tfvars"
-terraform apply -var-file="../../../example.tfvars"
+terraform plan -var-file="../../../m3i-platform.tfvars"
+terraform apply -var-file="../../../m3i-platform.tfvars"
 ```
 
 ## Git and State Safety
