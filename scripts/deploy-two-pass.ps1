@@ -1,5 +1,5 @@
 param(
-  [string]$VarFile = "m3i-platform.tfvars",
+  [string]$VarFile = "",
   [ValidateSet("plan", "apply", "validate-only")]
   [string]$Mode = "plan",
   [switch]$AutoApprove
@@ -8,10 +8,12 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$varFilePath = if ([System.IO.Path]::IsPathRooted($VarFile)) { $VarFile } else { Join-Path $repoRoot $VarFile }
-
-if (-not (Test-Path $varFilePath)) {
-  throw "Var file not found: $varFilePath"
+$varFilePath = $null
+if ($VarFile -ne "") {
+  $varFilePath = if ([System.IO.Path]::IsPathRooted($VarFile)) { $VarFile } else { Join-Path $repoRoot $VarFile }
+  if (-not (Test-Path $varFilePath)) {
+    throw "Var file not found: $varFilePath"
+  }
 }
 
 $phase1PlatformDirs = @(
@@ -39,6 +41,34 @@ $validateOnlyDirs = @(
   "regions/eastus2/spoke-prod",
   "regions/eastus2/spoke-nonprod"
 )
+
+$rootVarFiles = @{
+  "regions/centralus/platform"      = "tfvars/centralus-platform.tfvars"
+  "regions/centralus/spoke-prod"    = "tfvars/centralus-spoke-prod.tfvars"
+  "regions/centralus/spoke-nonprod" = "tfvars/centralus-spoke-nonprod.tfvars"
+  "regions/eastus2/platform"        = "tfvars/eastus2-platform.tfvars"
+  "regions/eastus2/spoke-prod"      = "tfvars/eastus2-spoke-prod.tfvars"
+  "regions/eastus2/spoke-nonprod"   = "tfvars/eastus2-spoke-nonprod.tfvars"
+}
+
+function Get-RootVarFilePath {
+  param(
+    [string]$RelativeDir
+  )
+
+  if (-not $rootVarFiles.ContainsKey($RelativeDir)) {
+    throw "No per-root tfvars mapping found for '$RelativeDir'"
+  }
+
+  $relativeVarFile = $rootVarFiles[$RelativeDir]
+  $fullVarFilePath = Join-Path $repoRoot $relativeVarFile
+
+  if (-not (Test-Path $fullVarFilePath)) {
+    throw "Missing per-root tfvars file: $fullVarFilePath"
+  }
+
+  return $fullVarFilePath
+}
 
 function Get-BackendConfig {
   param(
@@ -175,7 +205,12 @@ function Invoke-Terraform {
       throw "[$Phase][$RelativeDir] terraform validate failed"
     }
 
-    $cmd = @($EffectiveMode, "-var-file=$varFilePath")
+    $rootVarFilePath = Get-RootVarFilePath -RelativeDir $RelativeDir
+
+    $cmd = @($EffectiveMode, "-var-file=$rootVarFilePath")
+    if ($varFilePath) {
+      $cmd += "-var-file=$varFilePath"
+    }
     foreach ($extraVar in $ExtraVars) {
       $cmd += "-var=$extraVar"
     }
@@ -215,7 +250,10 @@ function Invoke-Phase {
 }
 
 Write-Host "Starting two-pass deployment orchestration..." -ForegroundColor Green
-Write-Host "Var file: $varFilePath" -ForegroundColor DarkGray
+if ($varFilePath) {
+  Write-Host "Optional override var file: $varFilePath" -ForegroundColor DarkGray
+}
+Write-Host "Per-root var files: tfvars/*.tfvars" -ForegroundColor DarkGray
 Write-Host "Mode: $Mode" -ForegroundColor DarkGray
 
 if ($Mode -eq "validate-only") {
@@ -233,7 +271,7 @@ $allRoots = @(
 
 Test-BackendPreflight -RelativeDirs $allRoots
 
-Invoke-Phase -Phase "Phase 1: Platform (hub-to-spoke peering disabled)" -RelativeDirs $phase1PlatformDirs -ExtraVars @("enable_hub_to_spoke_peering=false")
+Invoke-Phase -Phase "Phase 1: Platform (hub-to-spoke and hub-to-hub peering disabled)" -RelativeDirs $phase1PlatformDirs -ExtraVars @("enable_hub_to_spoke_peering=false", "enable_hub_to_hub_peering=false")
 Invoke-Phase -Phase "Phase 2: Spokes" -RelativeDirs $spokeDirs
 Invoke-Phase -Phase "Phase 3: Platform (hub-to-spoke peering enabled)" -RelativeDirs $phase2PlatformDirs -ExtraVars @("enable_hub_to_spoke_peering=true")
 

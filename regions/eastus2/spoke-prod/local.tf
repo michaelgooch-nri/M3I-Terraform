@@ -19,8 +19,9 @@ locals {
   spoke_vnet_name = "m3i-lz-prod-eus2-vnet-01"
 
   # Hub reference (data source will fetch this)
-  hub_vnet_name        = "m3i-hub-prod-vnet-eus2"
+  hub_vnet_name        = "m3i-hub-prod-eus2-vnet-01"
   hub_resource_group   = "m3i-hub-prod-rg-vnet-eus2"
+  hub_vnet_id          = "/subscriptions/${var.platform_subscription_id}/resourceGroups/${local.hub_resource_group}/providers/Microsoft.Network/virtualNetworks/${local.hub_vnet_name}"
 
   # VNet Peering
   peering_hub_to_spoke_name = "${local.org}-hub-to-${local.env}-peer-${local.location_abbr}"

@@ -5,6 +5,7 @@
 *.tfstate.*
 *.tfvars
 !m3i-platform.tfvars
+!tfvars/*.tfvars
 
 # IDE
 .vscode/

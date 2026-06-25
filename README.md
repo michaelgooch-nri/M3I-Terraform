@@ -158,10 +158,11 @@ Run Terraform per root module (each directory is independent state):
 8. `regions/eastus2/platform` (pass 2)
 
 Notes:
-- Pass 1 for platform roots: set `enable_hub_to_spoke_peering = false` to create hub + Bastion + hub/bastion peerings without spoke dependencies.
-- Spokes auto-read regional hub firewall IP from hub remote state (manual `hub_firewall_private_ip` remains as optional override).
+- Pass 1 for platform roots: set `enable_hub_to_spoke_peering = false` and `enable_hub_to_hub_peering = false` to create hub + Bastion + hub/bastion peerings without spoke/hub dependencies.
+- Spokes use `hub_firewall_private_ip` from per-root tfvars; remote-state hub firewall output remains as fallback.
 - Pass 2 for platform roots: set `enable_hub_to_spoke_peering = true` to create both hub<->spoke and bastion<->spoke peerings.
 - Keep `enable_hub_to_hub_peering = false` in pass 1, then enable it once both hubs exist so reciprocal hub<->hub peering is created.
+- Platform peering is implemented with deterministic VNet IDs (subscription + resource group + VNet name), avoiding live cross-subscription data lookups during `plan`.
 
 ### Automated Two-Pass Deployment
 
@@ -176,7 +177,7 @@ You can run the full three-phase sequence with one command from repository root:
 ```
 
 What the script does:
-- Phase 1: applies both platform roots with `enable_hub_to_spoke_peering=false`
+- Phase 1: applies both platform roots with `enable_hub_to_spoke_peering=false` and `enable_hub_to_hub_peering=false`
 - Phase 2: applies all four spoke roots
 - Phase 3: reapplies both platform roots with `enable_hub_to_spoke_peering=true`
 
@@ -203,6 +204,7 @@ In each deployment directory, verify:
   - `enable_key_vault`
   - `enable_dc_vms` (hub)
   - `enable_hub_to_spoke_peering` (important for two-pass sequence)
+  - `enable_hub_to_hub_peering` (set `false` in phase 1, then `true` when both hubs are available)
 - DC settings (hub):
   - `dc_vm_count` (default `2`)
   - `dc_vm_size` (default `Standard_D2s_v5`)
@@ -210,6 +212,10 @@ In each deployment directory, verify:
   - `admin_password` (blank = generated and stored in Key Vault)
 - Inter-region firewall routing (hub):
   - `other_region_firewall_private_ip` (optional override; default behavior auto-resolves from other hub remote state)
+- Cross-region hub peering (hub):
+  - `other_region_hub_vnet_name`
+  - `other_region_hub_resource_group`
+  - `other_region_hub_subscription_id`
 
 ## Validation Workflow
 

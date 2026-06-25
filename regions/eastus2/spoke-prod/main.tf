@@ -9,12 +9,6 @@ data "azurerm_client_config" "current" {
   provider = azurerm.spoke
 }
 
-data "azurerm_virtual_network" "hub_vnet" {
-  name                = local.hub_vnet_name
-  resource_group_name = local.hub_resource_group
-  provider            = azurerm.platform
-}
-
 data "terraform_remote_state" "platform_hub" {
   backend = "azurerm"
   config = {
@@ -22,11 +16,16 @@ data "terraform_remote_state" "platform_hub" {
     storage_account_name = "m3ihubprodstortfeus2"
     container_name       = "tfstate"
     key                  = "m3i-platform-eus2.tfstate"
+    subscription_id      = "5f6a8c70-73ff-4df7-88f2-5484fbb14aff"
   }
 }
 
 locals {
-  hub_firewall_private_ip_effective = var.hub_firewall_private_ip != "" ? var.hub_firewall_private_ip : try(data.terraform_remote_state.platform_hub.outputs.hub_firewall_private_ip, "")
+  hub_firewall_private_ip_effective = coalesce(
+    var.hub_firewall_private_ip != "" ? var.hub_firewall_private_ip : null,
+    try(data.terraform_remote_state.platform_hub.outputs.hub_firewall_private_ip, null),
+    var.location == "centralus" ? "10.100.0.132" : "10.101.0.132"
+  )
 }
 
 #---------------------------------------
@@ -353,7 +352,7 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
   name                      = local.peering_spoke_to_hub_name
   resource_group_name       = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.spoke_vnet.name
-  remote_virtual_network_id = data.azurerm_virtual_network.hub_vnet.id
+  remote_virtual_network_id = local.hub_vnet_id
   provider                  = azurerm.spoke
 
   allow_virtual_network_access = true

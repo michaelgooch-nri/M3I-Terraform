@@ -244,6 +244,13 @@ variable "other_region_hub_resource_group" {
   default     = ""
 }
 
+variable "other_region_hub_subscription_id" {
+  description = "Subscription ID of the hub in the other region for cross-region peering"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "other_region_firewall_private_ip" {
   description = "Private IP of the other region Azure Firewall for inter-region routing"
   type        = string

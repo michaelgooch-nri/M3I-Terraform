@@ -17,6 +17,7 @@ data "terraform_remote_state" "other_region_hub" {
     storage_account_name = "m3ihubprodstortfcus"
     container_name       = "tfstate"
     key                  = "m3i-platform-cus.tfstate"
+    subscription_id      = "4d58273c-5176-4f3b-97d5-8d19d8ff74e8"
   }
 }
 
@@ -961,7 +962,7 @@ resource "azurerm_virtual_network_peering" "bastion_to_spoke_prod" {
   name                      = "m3i-hub-bastion-eus2-peering-to-lz-prod"
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.bastion_vnet[0].name
-  remote_virtual_network_id = data.azurerm_virtual_network.spoke_prod_vnet[0].id
+  remote_virtual_network_id = local.spoke_prod_vnet_id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true
@@ -973,8 +974,8 @@ resource "azurerm_virtual_network_peering" "bastion_to_spoke_prod" {
 resource "azurerm_virtual_network_peering" "spoke_prod_to_bastion" {
   count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
   name                      = "m3i-lz-prod-eus2-peering-to-bastion-eus2"
-  resource_group_name       = "m3i-lz-prod-eus2-rg-vnet"
-  virtual_network_name      = data.azurerm_virtual_network.spoke_prod_vnet[0].name
+  resource_group_name       = local.spoke_prod_vnet_rg
+  virtual_network_name      = local.spoke_prod_vnet_name
   remote_virtual_network_id = azurerm_virtual_network.bastion_vnet[0].id
   provider                  = azurerm.spoke_prod
 
@@ -989,7 +990,7 @@ resource "azurerm_virtual_network_peering" "bastion_to_spoke_nonprod" {
   name                      = "m3i-hub-bastion-eus2-peering-to-lz-nonprod"
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.bastion_vnet[0].name
-  remote_virtual_network_id = data.azurerm_virtual_network.spoke_nonprod_vnet[0].id
+  remote_virtual_network_id = local.spoke_nonprod_vnet_id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true
@@ -1001,8 +1002,8 @@ resource "azurerm_virtual_network_peering" "bastion_to_spoke_nonprod" {
 resource "azurerm_virtual_network_peering" "spoke_nonprod_to_bastion" {
   count                     = var.enable_bastion && var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
   name                      = "m3i-lz-nonprod-eus2-peering-to-bastion-eus2"
-  resource_group_name       = "m3i-lz-nonprod-eus2-rg-vnet"
-  virtual_network_name      = data.azurerm_virtual_network.spoke_nonprod_vnet[0].name
+  resource_group_name       = local.spoke_nonprod_vnet_rg
+  virtual_network_name      = local.spoke_nonprod_vnet_name
   remote_virtual_network_id = azurerm_virtual_network.bastion_vnet[0].id
   provider                  = azurerm.spoke_nonprod
 
@@ -1012,29 +1013,13 @@ resource "azurerm_virtual_network_peering" "spoke_nonprod_to_bastion" {
   use_remote_gateways          = false
 }
 
-# Data source to lookup Prod spoke VNet
-data "azurerm_virtual_network" "spoke_prod_vnet" {
-  count               = var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
-  name                = "m3i-lz-prod-eus2-vnet-01"
-  resource_group_name = "m3i-lz-prod-eus2-rg-vnet"
-  provider            = azurerm.spoke_prod
-}
-
-# Data source to lookup NonProd spoke VNet
-data "azurerm_virtual_network" "spoke_nonprod_vnet" {
-  count               = var.enable_hub_to_spoke_peering && var.spoke_nonprod_subscription_id != "" ? 1 : 0
-  name                = "m3i-lz-nonprod-eus2-vnet-01"
-  resource_group_name = "m3i-lz-nonprod-eus2-rg-vnet"
-  provider            = azurerm.spoke_nonprod
-}
-
 # Hub to Spoke Prod peering
 resource "azurerm_virtual_network_peering" "hub_to_spoke_prod" {
   count                     = var.enable_hub_to_spoke_peering && var.spoke_prod_subscription_id != "" ? 1 : 0
   name                      = "m3i-hub-prod-eus2-peering-to-lz-prod"
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.hub_vnet.name
-  remote_virtual_network_id = data.azurerm_virtual_network.spoke_prod_vnet[0].id
+  remote_virtual_network_id = local.spoke_prod_vnet_id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true
@@ -1051,7 +1036,7 @@ resource "azurerm_virtual_network_peering" "hub_to_spoke_nonprod" {
   name                      = "m3i-hub-prod-eus2-peering-to-lz-nonprod"
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.hub_vnet.name
-  remote_virtual_network_id = data.azurerm_virtual_network.spoke_nonprod_vnet[0].id
+  remote_virtual_network_id = local.spoke_nonprod_vnet_id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true
@@ -1066,21 +1051,13 @@ resource "azurerm_virtual_network_peering" "hub_to_spoke_nonprod" {
 # Cross-Region Hub to Hub Peering (EUS2 to CUS)
 #---------------------------------------
 
-# Data source to lookup CentralUS hub VNet
-data "azurerm_virtual_network" "hub_cus_vnet" {
-  count               = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" ? 1 : 0
-  name                = var.other_region_hub_vnet_name
-  resource_group_name = var.other_region_hub_resource_group
-  provider            = azurerm.platform
-}
-
 # EastUS2 Hub to CentralUS Hub peering
 resource "azurerm_virtual_network_peering" "hub_to_hub_cus" {
-  count                     = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" ? 1 : 0
+  count                     = var.enable_hub_to_hub_peering && var.other_region_hub_vnet_name != "" && var.other_region_hub_resource_group != "" && var.other_region_hub_subscription_id != "" ? 1 : 0
   name                      = "m3i-hub-prod-eus2-peering-to-hub-cus"
   resource_group_name       = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   virtual_network_name      = azurerm_virtual_network.hub_vnet.name
-  remote_virtual_network_id = data.azurerm_virtual_network.hub_cus_vnet[0].id
+  remote_virtual_network_id = local.other_region_hub_vnet_id
   provider                  = azurerm.platform
 
   allow_virtual_network_access = true

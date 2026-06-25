@@ -21,6 +21,15 @@ locals {
   # VNet Naming
   hub_vnet_name = "m3i-hub-prod-eus2-vnet-01"
 
+  # Spoke VNet references (used for cross-subscription peering)
+  spoke_prod_vnet_name      = "m3i-lz-prod-eus2-vnet-01"
+  spoke_prod_vnet_rg        = "m3i-spoke-prod-rg-vnet-eus2"
+  spoke_nonprod_vnet_name   = "m3i-lz-nonprod-eus2-vnet-01"
+  spoke_nonprod_vnet_rg     = "m3i-spoke-nonprod-rg-vnet-eus2"
+  spoke_prod_vnet_id        = "/subscriptions/${var.spoke_prod_subscription_id}/resourceGroups/${local.spoke_prod_vnet_rg}/providers/Microsoft.Network/virtualNetworks/${local.spoke_prod_vnet_name}"
+  spoke_nonprod_vnet_id     = "/subscriptions/${var.spoke_nonprod_subscription_id}/resourceGroups/${local.spoke_nonprod_vnet_rg}/providers/Microsoft.Network/virtualNetworks/${local.spoke_nonprod_vnet_name}"
+  other_region_hub_vnet_id  = "/subscriptions/${var.other_region_hub_subscription_id}/resourceGroups/${var.other_region_hub_resource_group}/providers/Microsoft.Network/virtualNetworks/${var.other_region_hub_vnet_name}"
+
   # Firewall Naming
   hub_fw_name        = "${local.org}-${local.admin_domain}-${local.env}-fw-${local.location_abbr}"
   hub_fw_pip_name    = "${local.org}-${local.admin_domain}-${local.env}-pip-fw-${local.location_abbr}"

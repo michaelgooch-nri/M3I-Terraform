@@ -32,6 +32,7 @@ output "spoke_db_subnet_id" {
 }
 
 output "hub_vnet_id" {
-  description = "Resource ID of the hub virtual network (data source)"
-  value       = data.azurerm_virtual_network.hub_vnet.id
+  description = "Resource ID of the hub virtual network"
+  value       = local.hub_vnet_id
+  sensitive   = true
 }
