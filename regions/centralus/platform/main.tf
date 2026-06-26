@@ -454,6 +454,11 @@ resource "azurerm_route_table" "hub_firewall_rt" {
     next_hop_type          = "Internet"
   }
 
+  lifecycle {
+    # Additional routes are managed via azurerm_route resources.
+    ignore_changes = [route]
+  }
+
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
@@ -794,30 +799,19 @@ resource "azurerm_key_vault" "hub_keyvault" {
   enabled_for_deployment          = true
   enabled_for_disk_encryption     = true
   enabled_for_template_deployment = true
+  rbac_authorization_enabled      = true
   purge_protection_enabled        = true
   soft_delete_retention_days      = 7
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
 
-resource "azurerm_key_vault_access_policy" "hub_keyvault_policy" {
-  count       = var.enable_key_vault ? 1 : 0
-  key_vault_id = azurerm_key_vault.hub_keyvault[0].id
-  tenant_id   = data.azurerm_client_config.current.tenant_id
-  object_id   = data.azurerm_client_config.current.object_id
-  provider    = azurerm.platform
-
-  key_permissions = [
-    "Backup", "Create", "Decrypt", "Delete", "Encrypt", "Get", "Import", "List", "Purge", "Recover", "Restore", "Sign", "UnwrapKey", "Update", "Verify", "WrapKey"
-  ]
-
-  secret_permissions = [
-    "Backup", "Delete", "Get", "List", "Purge", "Recover", "Restore", "Set"
-  ]
-
-  certificate_permissions = [
-    "Backup", "Create", "Delete", "DeleteIssuers", "Get", "GetIssuers", "Import", "List", "ListIssuers", "Purge", "Recover", "Restore", "SetIssuers", "Update"
-  ]
+resource "azurerm_role_assignment" "hub_keyvault_secrets_officer" {
+  count                = var.enable_key_vault ? 1 : 0
+  scope                = azurerm_key_vault.hub_keyvault[0].id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+  provider             = azurerm.platform
 }
 
 #---------------------------------------
@@ -841,8 +835,20 @@ resource "azurerm_key_vault_secret" "dc_admin_password" {
   provider        = azurerm.platform
 
   depends_on = [
-    azurerm_key_vault_access_policy.hub_keyvault_policy
+    azurerm_role_assignment.hub_keyvault_secrets_officer
   ]
+}
+
+resource "azurerm_availability_set" "dc_vm_as" {
+  count               = var.enable_dc_vms ? 1 : 0
+  name                = "m3i-hub-prod-cus-as-dc-01"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vm_rg"].name
+  platform_fault_domain_count  = 2
+  platform_update_domain_count = 5
+  managed             = true
+  provider            = azurerm.platform
+  tags                = merge(local.tags, var.common_tags)
 }
 
 # Network Interfaces for DC VMs
@@ -885,6 +891,8 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
 
   size = var.dc_vm_size
 
+  availability_set_id = azurerm_availability_set.dc_vm_as[0].id
+
   network_interface_ids = [azurerm_network_interface.dc_nic[count.index].id]
 
   os_disk {
@@ -900,6 +908,7 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
   }
 
   depends_on = [
+    azurerm_availability_set.dc_vm_as,
     azurerm_network_interface.dc_nic,
     azurerm_network_interface_security_group_association.dc_nsg_assoc
   ]

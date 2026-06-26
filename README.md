@@ -103,6 +103,8 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Recovery Services Vault (GRS, cross-region restore enabled) and VM backup policy
 - Backup protection for all hub DC VMs in both regions (4 total with current defaults)
 - Key Vault per hub
+  - Azure RBAC authorization enabled (`rbac_authorization_enabled = true`)
+  - Terraform access policy resources replaced by RBAC role assignments (`Key Vault Secrets Officer`) for deployment identity
 - Hub-to-spoke and hub-to-hub peering resources
 - Active Directory VM foundations in each hub:
   - CentralUS: `AZ-CUS-DC01`, `AZ-CUS-DC02`
@@ -122,6 +124,17 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Spoke-to-hub peering
   - `use_remote_gateways = false` (hub VPN gateway is not deployed in current baseline)
 - Key Vault per spoke (optional via flag)
+  - Azure RBAC authorization enabled (`rbac_authorization_enabled = true`)
+  - Terraform access policy resources replaced by RBAC role assignments (`Key Vault Secrets Officer`) for deployment identity
+
+## Latest Operations Notes
+
+- Current state converged across all six roots (`centralus/eastus2` platform + prod/nonprod spokes): no-change plans after final remediation.
+- During full two-pass apply runs, phase 3 can fail with `RemotePeeringIsDisconnected` if spoke-side remote peerings are stale after peering toggles.
+- Proven recovery pattern used in this repo:
+  1. Recreate spoke-side `spoke_to_hub` peering in affected spoke root(s) with `-replace`.
+  2. Re-run platform apply for affected region with `enable_hub_to_spoke_peering=true` (and `enable_hub_to_hub_peering=true` where required).
+  3. Re-validate all six roots with `terraform plan` expecting no changes.
 
 ## Repository Layout
 

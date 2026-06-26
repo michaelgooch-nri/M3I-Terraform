@@ -317,30 +317,19 @@ resource "azurerm_key_vault" "spoke_keyvault" {
   enabled_for_deployment          = true
   enabled_for_disk_encryption     = true
   enabled_for_template_deployment = true
+  rbac_authorization_enabled      = true
   purge_protection_enabled        = true
   soft_delete_retention_days      = 7
 
   depends_on = [azurerm_resource_group.spoke_resource_groups]
 }
 
-resource "azurerm_key_vault_access_policy" "spoke_keyvault_policy" {
-  count       = var.enable_key_vault ? 1 : 0
-  key_vault_id = azurerm_key_vault.spoke_keyvault[0].id
-  tenant_id   = data.azurerm_client_config.current.tenant_id
-  object_id   = data.azurerm_client_config.current.object_id
-  provider    = azurerm.spoke
-
-  key_permissions = [
-    "Backup", "Create", "Decrypt", "Delete", "Encrypt", "Get", "Import", "List", "Purge", "Recover", "Restore", "Sign", "UnwrapKey", "Update", "Verify", "WrapKey"
-  ]
-
-  secret_permissions = [
-    "Backup", "Delete", "Get", "List", "Purge", "Recover", "Restore", "Set"
-  ]
-
-  certificate_permissions = [
-    "Backup", "Create", "Delete", "DeleteIssuers", "Get", "GetIssuers", "Import", "List", "ListIssuers", "Purge", "Recover", "Restore", "SetIssuers", "Update"
-  ]
+resource "azurerm_role_assignment" "spoke_keyvault_secrets_officer" {
+  count                = var.enable_key_vault ? 1 : 0
+  scope                = azurerm_key_vault.spoke_keyvault[0].id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+  provider             = azurerm.spoke
 }
 
 #---------------------------------------
