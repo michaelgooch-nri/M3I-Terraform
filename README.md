@@ -130,7 +130,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 ## Latest Operations Notes
 
 - Current state converged across all six roots (`centralus/eastus2` platform + prod/nonprod spokes): no-change plans after final remediation.
-- During full two-pass apply runs, phase 3 can fail with `RemotePeeringIsDisconnected` if spoke-side remote peerings are stale after peering toggles.
+- Historical note: prior two-pass orchestration could fail with `RemotePeeringIsDisconnected` if spoke-side remote peerings became stale after peering toggles.
 - Proven recovery pattern used in this repo:
   1. Recreate spoke-side `spoke_to_hub` peering in affected spoke root(s) with `-replace`.
   2. Re-run platform apply for affected region with `enable_hub_to_spoke_peering=true` (and `enable_hub_to_hub_peering=true` where required).
@@ -162,25 +162,20 @@ M3I-Terraform/
 
 Run Terraform per root module (each directory is independent state):
 
-1. `regions/centralus/platform` (pass 1)
-2. `regions/eastus2/platform` (pass 1)
+1. `regions/centralus/platform`
+2. `regions/eastus2/platform`
 3. `regions/centralus/spoke-prod`
 4. `regions/centralus/spoke-nonprod`
 5. `regions/eastus2/spoke-prod`
 6. `regions/eastus2/spoke-nonprod`
-7. `regions/centralus/platform` (pass 2)
-8. `regions/eastus2/platform` (pass 2)
 
 Notes:
-- Pass 1 for platform roots: set `enable_hub_to_spoke_peering = false` and `enable_hub_to_hub_peering = false` to create hub + Bastion + hub/bastion peerings without spoke/hub dependencies.
 - Spokes use `hub_firewall_private_ip` from per-root tfvars; remote-state hub firewall output remains as fallback.
-- Pass 2 for platform roots: set `enable_hub_to_spoke_peering = true` to create both hub<->spoke and bastion<->spoke peerings.
-- Keep `enable_hub_to_hub_peering = false` in pass 1, then enable it once both hubs exist so reciprocal hub<->hub peering is created.
 - Platform peering is implemented with deterministic VNet IDs (subscription + resource group + VNet name), avoiding live cross-subscription data lookups during `plan`.
 
-### Automated Two-Pass Deployment
+### Automated Deployment
 
-You can run the full three-phase sequence with one command from repository root:
+You can run a full single-pass orchestration from repository root:
 
 ```powershell
 # Plan across all roots in required order
@@ -188,24 +183,33 @@ You can run the full three-phase sequence with one command from repository root:
 
 # Apply across all roots in required order
 ./scripts/deploy-two-pass.ps1 -Mode apply -VarFile m3i-platform.tfvars -AutoApprove
+
+# Run only roots that belong to a specific backend subscription
+./scripts/deploy-two-pass.ps1 -Mode plan -TargetSubscriptionIds 4d58273c-5176-4f3b-97d5-8d19d8ff74e8
+
+# Run multiple subscriptions in one command
+./scripts/deploy-two-pass.ps1 -Mode apply -AutoApprove -TargetSubscriptionIds `
+  4d58273c-5176-4f3b-97d5-8d19d8ff74e8,31a0c2bb-b673-4ea4-81c2-335d87ca60f8
 ```
 
 What the script does:
-- Phase 1: applies both platform roots with `enable_hub_to_spoke_peering=false` and `enable_hub_to_hub_peering=false`
-- Phase 2: applies all four spoke roots
-- Phase 3: reapplies both platform roots with `enable_hub_to_spoke_peering=true`
+- Runs selected roots one time each in deterministic order (platform roots first, then spoke roots)
+- Supports optional filtering by backend subscription via `-TargetSubscriptionIds`
 
 Script location: `scripts/deploy-two-pass.ps1`
+
+Note:
+- The script name is retained for backward compatibility, but behavior is now single-pass.
 
 Behavior details:
 - In `plan` and `apply` modes, the script runs backend preflight checks first (Azure subscription context, `Microsoft.Storage` availability, backend RG, storage account, and `tfstate` container).
 - Before each root run, the script explicitly selects that root's backend subscription (`az account set`) prior to `terraform init`.
 - The script runs `terraform init` and `terraform validate` in every root before `plan` or `apply`.
-- Use `-Mode validate-only` for quick dry checks without backend/state access (`terraform init -backend=false` + `terraform validate` across all roots).
-- Use `-Mode plan` for dry run across all phases.
+- Use `-Mode validate-only` for quick dry checks without backend/state access (`terraform init -backend=false` + `terraform validate` across selected roots).
+- Use `-Mode plan` for dry run across selected roots.
 - Use `-Mode apply -AutoApprove` for non-interactive apply.
-- Errors are grouped by phase/root in output (for example: `[FAILURE] [Phase 2: Spokes][regions/eastus2/spoke-prod] ...`).
-- If one phase fails, execution stops so you can fix before continuing.
+- Errors are grouped by operation/root in output (for example: `[FAILURE] [Deployment: selected roots (single pass)][regions/eastus2/spoke-prod] ...`).
+- If one root fails, execution stops so you can fix before continuing.
 
 ## Core Variables to Review
 
@@ -218,8 +222,8 @@ In each deployment directory, verify:
   - `enable_backup`
   - `enable_key_vault`
   - `enable_dc_vms` (hub)
-  - `enable_hub_to_spoke_peering` (important for two-pass sequence)
-  - `enable_hub_to_hub_peering` (set `false` in phase 1, then `true` when both hubs are available)
+  - `enable_hub_to_spoke_peering`
+  - `enable_hub_to_hub_peering`
 - DC settings (hub):
   - `dc_vm_count` (default `2`)
   - `dc_vm_size` (default `Standard_D2s_v5`)

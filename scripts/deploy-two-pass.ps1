@@ -2,6 +2,7 @@ param(
   [string]$VarFile = "",
   [ValidateSet("plan", "apply", "validate-only")]
   [string]$Mode = "plan",
+  [string[]]$TargetSubscriptionIds = @(),
   [switch]$AutoApprove
 )
 
@@ -16,28 +17,11 @@ if ($VarFile -ne "") {
   }
 }
 
-$phase1PlatformDirs = @(
+$allRootsOrdered = @(
   "regions/centralus/platform",
-  "regions/eastus2/platform"
-)
-
-$spokeDirs = @(
-  "regions/centralus/spoke-prod",
-  "regions/centralus/spoke-nonprod",
-  "regions/eastus2/spoke-prod",
-  "regions/eastus2/spoke-nonprod"
-)
-
-$phase2PlatformDirs = @(
-  "regions/centralus/platform",
-  "regions/eastus2/platform"
-)
-
-$validateOnlyDirs = @(
-  "regions/centralus/platform",
-  "regions/centralus/spoke-prod",
-  "regions/centralus/spoke-nonprod",
   "regions/eastus2/platform",
+  "regions/centralus/spoke-prod",
+  "regions/centralus/spoke-nonprod",
   "regions/eastus2/spoke-prod",
   "regions/eastus2/spoke-nonprod"
 )
@@ -119,6 +103,41 @@ function Get-BackendConfig {
     ContainerName       = & $extract 'container_name\s*=\s*"([^"]+)"' 'container_name'
     StateKey            = & $extract 'key\s*=\s*"([^"]+)"' 'key'
   }
+}
+
+function Resolve-TargetDirs {
+  param(
+    [string[]]$RelativeDirs
+  )
+
+  if (-not $TargetSubscriptionIds -or $TargetSubscriptionIds.Count -eq 0) {
+    return $RelativeDirs
+  }
+
+  $targetSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+  foreach ($subscriptionId in $TargetSubscriptionIds) {
+    if (-not [string]::IsNullOrWhiteSpace($subscriptionId)) {
+      [void]$targetSet.Add($subscriptionId.Trim())
+    }
+  }
+
+  if ($targetSet.Count -eq 0) {
+    return $RelativeDirs
+  }
+
+  $selected = @()
+  foreach ($relativeDir in $RelativeDirs) {
+    $cfg = Get-BackendConfig -RelativeDir $relativeDir
+    if ($targetSet.Contains($cfg.SubscriptionId)) {
+      $selected += $relativeDir
+    }
+  }
+
+  if ($selected.Count -eq 0) {
+    throw "No roots match the provided -TargetSubscriptionIds values: $($TargetSubscriptionIds -join ', ')"
+  }
+
+  return $selected
 }
 
 function Test-AzureCliReady {
@@ -255,31 +274,30 @@ function Invoke-Phase {
   }
 }
 
-Write-Host "Starting two-pass deployment orchestration..." -ForegroundColor Green
+Write-Host "Starting deployment orchestration..." -ForegroundColor Green
 if ($varFilePath) {
   Write-Host "Optional override var file: $varFilePath" -ForegroundColor DarkGray
 }
 Write-Host "Per-root var files: tfvars/*.tfvars" -ForegroundColor DarkGray
 Write-Host "Mode: $Mode" -ForegroundColor DarkGray
+if ($TargetSubscriptionIds -and $TargetSubscriptionIds.Count -gt 0) {
+  Write-Host "Target subscriptions: $($TargetSubscriptionIds -join ', ')" -ForegroundColor DarkGray
+}
+
+$selectedRoots = Resolve-TargetDirs -RelativeDirs $allRootsOrdered
+Write-Host "Target roots: $($selectedRoots -join ', ')" -ForegroundColor DarkGray
 
 if ($Mode -eq "validate-only") {
-  Invoke-Phase -Phase "Validate-Only: all roots (init -backend=false + validate)" -RelativeDirs $validateOnlyDirs
+  Invoke-Phase -Phase "Validate-Only: selected roots (init -backend=false + validate)" -RelativeDirs $selectedRoots
 
   Write-Host ""
   Write-Host "Validate-only orchestration complete." -ForegroundColor Green
   exit 0
 }
 
-$allRoots = @(
-  $phase1PlatformDirs +
-  $spokeDirs
-)
+Test-BackendPreflight -RelativeDirs $selectedRoots
 
-Test-BackendPreflight -RelativeDirs $allRoots
-
-Invoke-Phase -Phase "Phase 1: Platform (hub-to-spoke and hub-to-hub peering disabled)" -RelativeDirs $phase1PlatformDirs -ExtraVars @("enable_hub_to_spoke_peering=false", "enable_hub_to_hub_peering=false")
-Invoke-Phase -Phase "Phase 2: Spokes" -RelativeDirs $spokeDirs
-Invoke-Phase -Phase "Phase 3: Platform (hub-to-spoke peering enabled)" -RelativeDirs $phase2PlatformDirs -ExtraVars @("enable_hub_to_spoke_peering=true")
+Invoke-Phase -Phase "Deployment: selected roots (single pass)" -RelativeDirs $selectedRoots
 
 Write-Host ""
-Write-Host "Two-pass deployment orchestration complete." -ForegroundColor Green
+Write-Host "Single-pass deployment orchestration complete." -ForegroundColor Green
