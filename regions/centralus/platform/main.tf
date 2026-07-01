@@ -447,19 +447,22 @@ resource "azurerm_route_table" "hub_firewall_rt" {
   provider            = azurerm.platform
   tags                = merge(local.tags, var.common_tags)
 
-  # Azure requires firewall subnet default route to Internet.
-  route {
-    name                   = "m3i-cus-default-to-internet"
-    address_prefix         = "0.0.0.0/0"
-    next_hop_type          = "Internet"
-  }
-
   lifecycle {
     # Additional routes are managed via azurerm_route resources.
     ignore_changes = [route]
   }
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
+}
+
+resource "azurerm_route" "hub_firewall_default_to_cato_nva" {
+  name                   = "m3i-cus-default-to-cato-nva"
+  resource_group_name    = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
+  route_table_name       = azurerm_route_table.hub_firewall_rt.name
+  address_prefix         = "0.0.0.0/0"
+  next_hop_type          = "VirtualAppliance"
+  next_hop_in_ip_address = "10.100.0.36"
+  provider               = azurerm.platform
 }
 
 resource "azurerm_route" "hub_firewall_to_other_region" {
@@ -526,25 +529,6 @@ resource "azurerm_firewall" "hub_firewall" {
     azurerm_firewall_policy.hub_firewall_policy,
     azurerm_subnet.hub_firewall_subnet
   ]
-}
-
-# Reserve first usable IP in Cato LAN subnet for future vSocket VM.
-resource "azurerm_network_interface" "cato_vsocket_lan_nic" {
-  name                = "m3i-hub-prod-cus-nic-cato-lan-01"
-  location            = var.location
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  provider            = azurerm.platform
-  ip_forwarding_enabled = true
-  tags                = merge(local.tags, var.common_tags)
-
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.hub_cato_lan_subnet.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = cidrhost(var.subnets.cato_lan.address_prefixes[0], 4)
-  }
-
-  depends_on = [azurerm_subnet.hub_cato_lan_subnet]
 }
 
 #---------------------------------------

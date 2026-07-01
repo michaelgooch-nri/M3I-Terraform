@@ -135,6 +135,9 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   1. Recreate spoke-side `spoke_to_hub` peering in affected spoke root(s) with `-replace`.
   2. Re-run platform apply for affected region with `enable_hub_to_spoke_peering=true` (and `enable_hub_to_hub_peering=true` where required).
   3. Re-validate all six roots with `terraform plan` expecting no changes.
+- Deferred change decision (2026-07-01):
+  - Forced tunneling on Azure Firewall and SNAT disable are approved as the target design, but implementation is intentionally paused.
+  - Current checkpoint keeps that work in planning state so it can be applied in a controlled change window.
 
 ## Repository Layout
 
