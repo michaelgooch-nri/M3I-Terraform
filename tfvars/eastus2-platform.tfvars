@@ -64,7 +64,7 @@ dc_vm_count                        = 2
 dc_vm_size                         = "Standard_D2s_v5"
 dc_os_image_publisher              = "MicrosoftWindowsServer"
 dc_os_image_offer                  = "WindowsServer"
-dc_os_image_sku                    = "2025-Datacenter"
+dc_os_image_sku                    = "2022-Datacenter"
 dc_os_image_version                = "latest"
 admin_password                     = ""  # Leave empty to auto-generate, or provide your own
 

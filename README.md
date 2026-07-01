@@ -110,7 +110,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - CentralUS: `AZ-CUS-DC01`, `AZ-CUS-DC02`
   - EastUS2: `AZ-EUS2-DC01`, `AZ-EUS2-DC02`
   - Size default: `Standard_D2s_v5` (2-core D-series)
-  - OS default: Windows Server 2025 Datacenter
+  - OS default: Windows Server 2022 Datacenter
   - Admin password stored in hub Key Vault secret `dc-admin-password`
   - Base monitoring enabled via Azure Monitor Agent + Data Collection Rule to regional Log Analytics workspace
     - Windows Event logs: Application, System
@@ -130,6 +130,8 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 ## Latest Operations Notes
 
 - Current state converged across all six roots (`centralus/eastus2` platform + prod/nonprod spokes): no-change plans after final remediation.
+- Domain Controller image baseline updated from Windows Server 2025 Datacenter to Windows Server 2022 Datacenter in both platform roots.
+- DC rebuild outcome (2026-07-01): both CentralUS and EastUS2 hub DC pairs were torn down and recreated successfully on the 2022 image, followed by no-change validation plans on both platform subscriptions.
 - Historical note: prior two-pass orchestration could fail with `RemotePeeringIsDisconnected` if spoke-side remote peerings became stale after peering toggles.
 - Proven recovery pattern used in this repo:
   1. Recreate spoke-side `spoke_to_hub` peering in affected spoke root(s) with `-replace`.
