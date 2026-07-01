@@ -19,7 +19,7 @@ Optional but recommended:
   - `platform` (hub)
   - `spoke-prod`
   - `spoke-nonprod`
-- Architecture pattern: hub-and-spoke with centralized Azure Firewall in each regional hub
+- Architecture pattern: hub-and-spoke with preserved UDR next-hop framework in each regional hub (Azure Firewall resources decommissioned)
 - Cross-subscription peering:
   - Spoke to hub (all spokes)
   - Hub to spoke (from hub side)
@@ -92,14 +92,14 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
   - `AzureFirewallSubnet`
   - `private-endpoints`
   - `shared-services`
-- Azure Firewall with policy and rule collection groups
-- NAT Gateway and public IP for egress
+- AzureFirewallSubnet and associated route table framework retained for future virtual appliance/NVA cutover
+- Azure Firewall, firewall policy/rule collection groups, and NAT Gateway resources decommissioned from both hubs (2026-07-01)
 - Azure Bastion host per region in dedicated Bastion VNet/subnet (`AzureBastionSubnet`)
 - Bastion VNet peering model per region:
   - Bastion <-> Hub
   - Bastion <-> Spoke Prod
   - Bastion <-> Spoke NonProd
-- Log Analytics workspace and firewall diagnostic settings
+- Log Analytics workspace retained
 - Recovery Services Vault (GRS, cross-region restore enabled) and VM backup policy
 - Backup protection for all hub DC VMs in both regions (4 total with current defaults)
 - Key Vault per hub
@@ -120,7 +120,7 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Spoke VNet and subnets (`private-endpoints`, `vm`, `db`)
 - NSGs and subnet associations
 - Route tables and associations for VM/DB/Private Endpoints subnets
-- Default route `0.0.0.0/0` to hub firewall (auto-resolved from hub remote state; optional override with `hub_firewall_private_ip`)
+- Default route `0.0.0.0/0` to the configured hub virtual-appliance next hop (auto-resolved from hub remote state output `hub_firewall_private_ip`; optional override with `hub_firewall_private_ip`)
 - Spoke-to-hub peering
   - `use_remote_gateways = false` (hub VPN gateway is not deployed in current baseline)
 - Key Vault per spoke (optional via flag)
@@ -132,6 +132,9 @@ See `IP-SPACE-PLANNING.md` for detailed subnet allocation.
 - Current state converged across all six roots (`centralus/eastus2` platform + prod/nonprod spokes): no-change plans after final remediation.
 - Domain Controller image baseline updated from Windows Server 2025 Datacenter to Windows Server 2022 Datacenter in both platform roots.
 - DC rebuild outcome (2026-07-01): both CentralUS and EastUS2 hub DC pairs were torn down and recreated successfully on the 2022 image, followed by no-change validation plans on both platform subscriptions.
+- Hub firewall stack decommission outcome (2026-07-01): Azure Firewall, Firewall Policy, rule collection groups, diagnostics, firewall public IP, and NAT Gateway stack were removed in both platform roots.
+- Post-decommission validation (2026-07-01): both `centralus/platform` and `eastus2/platform` plans return `No changes`.
+- Spoke roots intentionally unchanged: spoke UDRs still reference legacy hub next-hop IPs (`10.100.0.132` / `10.101.0.132`) via remote-state output fallback to preserve routing structure for staged NVA cutover.
 - Historical note: prior two-pass orchestration could fail with `RemotePeeringIsDisconnected` if spoke-side remote peerings became stale after peering toggles.
 - Proven recovery pattern used in this repo:
   1. Recreate spoke-side `spoke_to_hub` peering in affected spoke root(s) with `-replace`.
@@ -387,67 +390,23 @@ By design, there are no NSGs associated to:
 - `GatewaySubnet`
 - `AzureFirewallSubnet`
 
-## Firewall Policy Rules (Current)
+## Firewall and NAT Status (Current)
 
-Current Azure Firewall policy is intentionally minimal and now targets explicit regional /16 address blocks.
+Current state after 2026-07-01 decommission:
 
-### CentralUS Hub Firewall
+- Azure Firewall resources are removed from both platform roots.
+- Azure Firewall Policy and rule collection groups are removed from both platform roots.
+- NAT Gateway resources on AzureFirewallSubnet are removed from both platform roots.
+- Hub and spoke route tables are intentionally retained.
+- Platform outputs still publish `hub_firewall_private_ip` as static legacy next-hop values:
+  - CentralUS: `10.100.0.132`
+  - EastUS2: `10.101.0.132`
 
-- Rule Collection Group: `DefaultNetworkRuleCollectionGroup` (priority `200`)
-- Network Rule Collection: `DefaultNetworkRuleCollection` (action `Allow`, priority `150`)
-  - Rule `allow-dns`
-    - Protocol: `UDP`
-    - Source: `*`
-    - Destination: `*`
-    - Destination Port: `53`
-  - Rule `allow-hub-to-spokes`
-    - Protocols: `TCP`, `UDP`, `ICMP`
-    - Sources:
-      - `10.100.0.0/16` (CentralUS reserved region block)
-      - `10.101.0.0/16` (EastUS2 reserved region block)
-    - Destinations:
-      - `10.100.0.0/16` (CentralUS reserved region block)
-      - `10.101.0.0/16` (EastUS2 reserved region block)
-    - Destination Ports: `*`
-- Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
-- Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
-  - Rule `allow-internet`
-    - Protocols: `Http` on `80`, `Https` on `443`
-    - Source: `*`
-    - Destination FQDNs: `*`
+### Effective Behavior and Caveat
 
-### EastUS2 Hub Firewall
-
-- Rule Collection Group: `DefaultNetworkRuleCollectionGroup` (priority `200`)
-- Network Rule Collection: `DefaultNetworkRuleCollection` (action `Allow`, priority `150`)
-  - Rule `allow-dns`
-    - Protocol: `UDP`
-    - Source: `*`
-    - Destination: `*`
-    - Destination Port: `53`
-  - Rule `allow-hub-to-spokes`
-    - Protocols: `TCP`, `UDP`, `ICMP`
-    - Sources:
-      - `10.100.0.0/16` (CentralUS reserved region block)
-      - `10.101.0.0/16` (EastUS2 reserved region block)
-    - Destinations:
-      - `10.100.0.0/16` (CentralUS reserved region block)
-      - `10.101.0.0/16` (EastUS2 reserved region block)
-    - Destination Ports: `*`
-- Rule Collection Group: `DefaultApplicationRuleCollectionGroup` (priority `300`)
-- Application Rule Collection: `DefaultApplicationRuleCollection` (action `Allow`, priority `100`)
-  - Rule `allow-internet`
-    - Protocols: `Http` on `80`, `Https` on `443`
-    - Source: `*`
-    - Destination FQDNs: `*`
-
-### Effective Behavior
-
-- DNS is broadly allowed.
-- Hub-to-spoke flows are allowed to each region's reserved `/16` block.
-- Inter-region traffic from routed spoke and hub workload subnets is forced through source-region Azure Firewall, then destination-region Azure Firewall.
-- Outbound web access is broadly allowed to all FQDNs on HTTP/HTTPS.
-- No explicit deny rules, DNAT rules, or tightly scoped spoke ranges are currently defined.
+- Terraform state is converged for the current design.
+- UDRs that still reference the legacy next-hop IPs will point to a non-existent appliance until a replacement NVA/CATO target is deployed and route next hops are repointed.
+- This was an intentional staged approach to preserve routing structure while decommissioning the managed firewall stack.
 
 ## Typical Commands
 

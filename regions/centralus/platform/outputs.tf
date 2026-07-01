@@ -23,12 +23,12 @@ output "hub_resource_group_name" {
 
 output "hub_firewall_id" {
   description = "Resource ID of the Azure Firewall"
-  value       = azurerm_firewall.hub_firewall.id
+  value       = null
 }
 
 output "hub_firewall_private_ip" {
   description = "Private IP address of the Azure Firewall"
-  value       = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  value       = "10.100.0.132"
 }
 
 output "hub_shared_services_subnet_id" {
@@ -43,7 +43,7 @@ output "hub_firewall_subnet_id" {
 
 output "hub_firewall_policy_id" {
   description = "Resource ID of the firewall policy"
-  value       = azurerm_firewall_policy.hub_firewall_policy.id
+  value       = null
 }
 
 output "hub_laws_workspace_id" {

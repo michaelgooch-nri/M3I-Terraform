@@ -381,14 +381,14 @@ resource "azurerm_route_table" "hub_shared_services_rt" {
     name                   = "m3i-cus-shared-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
     next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+    next_hop_in_ip_address = "10.100.0.132"
   }
 
   route {
     name                   = "m3i-cus-shared-to-eus2-via-hub-firewall"
     address_prefix         = "10.101.0.0/16"
     next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+    next_hop_in_ip_address = "10.100.0.132"
   }
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
@@ -410,14 +410,14 @@ resource "azurerm_route_table" "hub_private_endpoints_rt" {
     name                   = "m3i-cus-pe-to-hub-firewall"
     address_prefix         = "0.0.0.0/0"
     next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+    next_hop_in_ip_address = "10.100.0.132"
   }
 
   route {
     name                   = "m3i-cus-pe-to-eus2-via-hub-firewall"
     address_prefix         = "10.101.0.0/16"
     next_hop_type          = "VirtualAppliance"
-    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+    next_hop_in_ip_address = "10.100.0.132"
   }
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
@@ -464,154 +464,11 @@ resource "azurerm_subnet_route_table_association" "hub_firewall_rt_assoc" {
 # Azure Firewall
 #---------------------------------------
 
-resource "azurerm_public_ip" "hub_firewall_pip" {
-  name                = local.hub_fw_pip_name
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  location            = var.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  provider            = azurerm.platform
-}
-
-resource "azurerm_firewall_policy" "hub_firewall_policy" {
-  name                     = local.hub_fw_policy_name
-  location                 = var.location
-  resource_group_name      = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  provider                 = azurerm.platform
-  sku                      = var.firewall_config.sku_tier
-  threat_intelligence_mode = var.firewall_config.threat_intelligence_mode
-
-  depends_on = [azurerm_resource_group.hub_resource_groups]
-}
-
-resource "azurerm_firewall" "hub_firewall" {
-  name                = local.hub_fw_name
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  location            = var.location
-  sku_name            = var.firewall_config.sku_name
-  sku_tier            = var.firewall_config.sku_tier
-  provider            = azurerm.platform
-
-  ip_configuration {
-    name                 = "fw-ipconfig"
-    subnet_id            = azurerm_subnet.hub_firewall_subnet.id
-    public_ip_address_id = azurerm_public_ip.hub_firewall_pip.id
-  }
-
-  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
-
-  depends_on = [
-    azurerm_firewall_policy.hub_firewall_policy,
-    azurerm_subnet.hub_firewall_subnet
-  ]
-}
-
-#---------------------------------------
-# Firewall Policy Rules
-#---------------------------------------
-
-resource "azurerm_firewall_policy_rule_collection_group" "hub_network_rules" {
-  name               = "DefaultNetworkRuleCollectionGroup"
-  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
-  priority           = 200
-  provider           = azurerm.platform
-
-  network_rule_collection {
-    name     = "DefaultNetworkRuleCollection"
-    action   = "Allow"
-    priority = 150
-    
-    rule {
-      name                  = "allow-dns"
-      description           = "Allow DNS traffic"
-      protocols             = ["UDP"]
-      source_addresses      = ["*"]
-      destination_ports     = ["53"]
-      destination_addresses = ["*"]
-    }
-
-    rule {
-      name                  = "allow-hub-to-spokes"
-      description           = "Allow hub to spoke VNet traffic"
-      protocols             = ["TCP", "UDP", "ICMP"]
-      source_addresses      = [
-        "10.100.0.0/16",
-        "10.101.0.0/16"
-      ]
-      destination_ports     = ["*"]
-      destination_addresses = [
-        "10.100.0.0/16",
-        "10.101.0.0/16"
-      ]
-    }
-  }
-
-  depends_on = [azurerm_firewall_policy.hub_firewall_policy]
-}
-
-resource "azurerm_firewall_policy_rule_collection_group" "hub_app_rules" {
-  name               = "DefaultApplicationRuleCollectionGroup"
-  firewall_policy_id = azurerm_firewall_policy.hub_firewall_policy.id
-  priority           = 300
-  provider           = azurerm.platform
-
-  application_rule_collection {
-    name     = "DefaultApplicationRuleCollection"
-    action   = "Allow"
-    priority = 100
-    
-    rule {
-      name        = "allow-internet"
-      description = "Allow outbound internet traffic"
-      protocols {
-        type = "Http"
-        port = 80
-      }
-      protocols {
-        type = "Https"
-        port = 443
-      }
-      destination_fqdns = ["*"]
-      source_addresses  = ["*"]
-    }
-  }
-
-  depends_on = [azurerm_firewall_policy.hub_firewall_policy]
-}
 
 #---------------------------------------
 # NAT Gateway (for outbound internet access)
 #---------------------------------------
 
-resource "azurerm_public_ip" "hub_natgw_pip" {
-  name                = local.hub_natgw_pip_name
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  location            = var.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  provider            = azurerm.platform
-}
-
-resource "azurerm_nat_gateway" "hub_natgw" {
-  name                = local.hub_natgw_name
-  resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  location            = var.location
-  provider            = azurerm.platform
-
-  depends_on = [azurerm_public_ip.hub_natgw_pip]
-}
-
-resource "azurerm_nat_gateway_public_ip_association" "hub_natgw_pip_assoc" {
-  nat_gateway_id       = azurerm_nat_gateway.hub_natgw.id
-  public_ip_address_id = azurerm_public_ip.hub_natgw_pip.id
-  provider             = azurerm.platform
-}
-
-resource "azurerm_subnet_nat_gateway_association" "hub_firewall_subnet_natgw" {
-  subnet_id      = azurerm_subnet.hub_firewall_subnet.id
-  nat_gateway_id = azurerm_nat_gateway.hub_natgw.id
-  provider       = azurerm.platform
-}
 
 #---------------------------------------
 # Log Analytics Workspace
@@ -625,26 +482,6 @@ resource "azurerm_log_analytics_workspace" "hub_laws" {
   sku                 = "PerGB2018"
   retention_in_days   = var.log_analytics_retention_days
   provider            = azurerm.platform
-}
-
-resource "azurerm_monitor_diagnostic_setting" "hub_firewall_diagnostics" {
-  count                      = var.enable_log_analytics ? 1 : 0
-  name                       = "fw-diagnostics"
-  target_resource_id         = azurerm_firewall.hub_firewall.id
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.hub_laws[0].id
-  provider                   = azurerm.platform
-
-  enabled_log {
-    category = "AzureFirewallNetworkRule"
-  }
-
-  enabled_log {
-    category = "AzureFirewallApplicationRule"
-  }
-
-  enabled_metric {
-    category = "AllMetrics"
-  }
 }
 
 resource "azurerm_monitor_data_collection_rule" "dc_base_monitoring" {
