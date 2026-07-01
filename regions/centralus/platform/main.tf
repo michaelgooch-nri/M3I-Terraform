@@ -35,7 +35,7 @@ resource "azurerm_resource_group" "hub_resource_groups" {
   name     = each.value.name
   location = var.location
   provider = azurerm.platform
-  tags     = merge(local.tags, var.common_tags)
+   tags     = local.rg_tags
 }
 
 #---------------------------------------
@@ -48,7 +48,6 @@ resource "azurerm_virtual_network" "hub_vnet" {
   location            = var.location
   address_space       = [var.hub_vnet_address_space]
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
@@ -60,7 +59,6 @@ resource "azurerm_virtual_network" "bastion_vnet" {
   location            = var.location
   address_space       = [var.bastion_vnet_address_space]
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
@@ -82,7 +80,6 @@ resource "azurerm_public_ip" "bastion_pip" {
   allocation_method   = "Static"
   sku                 = "Standard"
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 }
 
 resource "azurerm_bastion_host" "hub_bastion" {
@@ -91,7 +88,6 @@ resource "azurerm_bastion_host" "hub_bastion" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   ip_configuration {
     name                 = "configuration"
@@ -191,7 +187,6 @@ resource "azurerm_network_security_group" "hub_shared_services_nsg" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -223,7 +218,6 @@ resource "azurerm_network_security_group" "hub_cato_lan_nsg" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -255,7 +249,6 @@ resource "azurerm_network_security_group" "hub_cato_wan_nsg" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -287,7 +280,6 @@ resource "azurerm_network_security_group" "hub_cato_mgmt_nsg" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -319,7 +311,6 @@ resource "azurerm_network_security_group" "hub_private_endpoints_nsg" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -385,7 +376,6 @@ resource "azurerm_route_table" "hub_shared_services_rt" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   route {
     name                   = "m3i-cus-shared-to-hub-firewall"
@@ -415,7 +405,6 @@ resource "azurerm_route_table" "hub_private_endpoints_rt" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   route {
     name                   = "m3i-cus-pe-to-hub-firewall"
@@ -445,7 +434,6 @@ resource "azurerm_route_table" "hub_firewall_rt" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   lifecycle {
     # Additional routes are managed via azurerm_route resources.
@@ -453,16 +441,6 @@ resource "azurerm_route_table" "hub_firewall_rt" {
   }
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
-}
-
-resource "azurerm_route" "hub_firewall_default_to_cato_nva" {
-  name                   = "m3i-cus-default-to-cato-nva"
-  resource_group_name    = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
-  route_table_name       = azurerm_route_table.hub_firewall_rt.name
-  address_prefix         = "0.0.0.0/0"
-  next_hop_type          = "VirtualAppliance"
-  next_hop_in_ip_address = "10.100.0.36"
-  provider               = azurerm.platform
 }
 
 resource "azurerm_route" "hub_firewall_to_other_region" {
@@ -493,7 +471,6 @@ resource "azurerm_public_ip" "hub_firewall_pip" {
   allocation_method   = "Static"
   sku                 = "Standard"
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 }
 
 resource "azurerm_firewall_policy" "hub_firewall_policy" {
@@ -503,7 +480,6 @@ resource "azurerm_firewall_policy" "hub_firewall_policy" {
   provider                 = azurerm.platform
   sku                      = var.firewall_config.sku_tier
   threat_intelligence_mode = var.firewall_config.threat_intelligence_mode
-  tags                     = merge(local.tags, var.common_tags)
 
   depends_on = [azurerm_resource_group.hub_resource_groups]
 }
@@ -515,7 +491,6 @@ resource "azurerm_firewall" "hub_firewall" {
   sku_name            = var.firewall_config.sku_name
   sku_tier            = var.firewall_config.sku_tier
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   ip_configuration {
     name                 = "fw-ipconfig"
@@ -615,7 +590,6 @@ resource "azurerm_public_ip" "hub_natgw_pip" {
   allocation_method   = "Static"
   sku                 = "Standard"
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 }
 
 resource "azurerm_nat_gateway" "hub_natgw" {
@@ -623,7 +597,6 @@ resource "azurerm_nat_gateway" "hub_natgw" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vnet_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   depends_on = [azurerm_public_ip.hub_natgw_pip]
 }
@@ -652,7 +625,6 @@ resource "azurerm_log_analytics_workspace" "hub_laws" {
   sku                 = "PerGB2018"
   retention_in_days   = var.log_analytics_retention_days
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 }
 
 resource "azurerm_monitor_diagnostic_setting" "hub_firewall_diagnostics" {
@@ -681,7 +653,6 @@ resource "azurerm_monitor_data_collection_rule" "dc_base_monitoring" {
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_laws_rg"].name
   location            = var.location
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   destinations {
     log_analytics {
@@ -732,7 +703,6 @@ resource "azurerm_recovery_services_vault" "hub_rsv" {
   sku                 = "Standard"
   storage_mode_type   = "GeoRedundant"
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   cross_region_restore_enabled  = true
   public_network_access_enabled = true
@@ -778,7 +748,6 @@ resource "azurerm_key_vault" "hub_keyvault" {
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   enabled_for_deployment          = true
   enabled_for_disk_encryption     = true
@@ -832,7 +801,6 @@ resource "azurerm_availability_set" "dc_vm_as" {
   platform_update_domain_count = 5
   managed             = true
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 }
 
 # Network Interfaces for DC VMs
@@ -842,7 +810,6 @@ resource "azurerm_network_interface" "dc_nic" {
   location            = var.location
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vm_rg"].name
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   ip_configuration {
     name                          = "testconfiguration1"
@@ -868,7 +835,6 @@ resource "azurerm_windows_virtual_machine" "dc_vm" {
   location            = var.location
   resource_group_name = azurerm_resource_group.hub_resource_groups["hub_vm_rg"].name
   provider            = azurerm.platform
-  tags                = merge(local.tags, var.common_tags)
 
   admin_username = "azureuser"
   admin_password = var.admin_password != "" ? var.admin_password : random_password.dc_admin_password[0].result
@@ -1058,3 +1024,4 @@ resource "azurerm_virtual_network_peering" "hub_to_hub_eus2" {
 
   depends_on = [azurerm_virtual_network.hub_vnet]
 }
+

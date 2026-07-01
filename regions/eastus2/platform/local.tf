@@ -47,12 +47,15 @@ locals {
   hub_rsv_name              = "${local.org}-${local.admin_domain}-${local.env}-rsv-${local.location_abbr}"
   hub_rsv_backup_policy_name = "${local.org}-${local.admin_domain}-${local.env}-rsv-bp-daily-${local.location_abbr}"
 
-  # Tags applied to all resources
-  tags = {
-    environment = "prod"
-    project     = "m3i-azure-platform"
-    region      = "eastus2"
-    managed_by  = "terraform"
+  # Tags applied only to resource groups
+  rg_tags = {
+    Application        = "TBD"
+    Environment        = "PROD"
+    Region             = "EUS2"
+    Owner              = "TBD"
+    CostCenter         = "TBD"
+    ManagedBy          = "TBD"
+    DataClassification = "TBD"
   }
 }
 

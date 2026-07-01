@@ -27,12 +27,14 @@ locals {
   peering_hub_to_spoke_name = "${local.org}-hub-to-${local.env}-peer-${local.location_abbr}"
   peering_spoke_to_hub_name = "${local.org}-${local.env}-to-hub-peer-${local.location_abbr}"
 
-  # Tags
-  tags = {
-    environment = "prod"
-    project     = "m3i-azure-platform"
-    region      = "eastus2"
-    spoke_type  = "workload"
-    managed_by  = "terraform"
+  # Tags applied only to resource groups
+  rg_tags = {
+    Application        = "TBD"
+    Environment        = "PROD"
+    Region             = "EUS2"
+    Owner              = "TBD"
+    CostCenter         = "TBD"
+    ManagedBy          = "TBD"
+    DataClassification = "TBD"
   }
 }

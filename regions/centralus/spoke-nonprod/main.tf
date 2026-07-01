@@ -38,7 +38,7 @@ resource "azurerm_resource_group" "spoke_resource_groups" {
   name     = each.value.name
   location = var.location
   provider = azurerm.spoke
-  tags     = merge(local.tags, var.common_tags)
+   tags     = local.rg_tags
 }
 
 #---------------------------------------
@@ -51,7 +51,6 @@ resource "azurerm_virtual_network" "spoke_vnet" {
   location            = var.location
   address_space       = [var.spoke_vnet_address_space]
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   depends_on = [azurerm_resource_group.spoke_resource_groups]
 }
@@ -99,7 +98,6 @@ resource "azurerm_network_security_group" "spoke_vm_nsg" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -137,7 +135,6 @@ resource "azurerm_network_security_group" "spoke_db_nsg" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -175,7 +172,6 @@ resource "azurerm_network_security_group" "spoke_pe_nsg" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   security_rule {
     name                       = "allow-all-inbound"
@@ -218,7 +214,6 @@ resource "azurerm_route_table" "spoke_vm_rt" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   # Default route to hub firewall
   route {
@@ -248,7 +243,6 @@ resource "azurerm_route_table" "spoke_db_rt" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   route {
     name           = "m3i-cus-default-to-hub-firewall"
@@ -277,7 +271,6 @@ resource "azurerm_route_table" "spoke_pe_rt" {
   resource_group_name = azurerm_resource_group.spoke_resource_groups["spoke_vnet_rg"].name
   location            = var.location
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   route {
     name                   = "m3i-cus-default-to-hub-firewall"
@@ -312,7 +305,6 @@ resource "azurerm_key_vault" "spoke_keyvault" {
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   provider            = azurerm.spoke
-  tags                = merge(local.tags, var.common_tags)
 
   enabled_for_deployment          = true
   enabled_for_disk_encryption     = true
@@ -355,3 +347,4 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
 # Hub to Spoke peering (cross-subscription)
 # Note: This requires a separate Terraform run in the platform subscription
 # OR use a module/data source to reference the hub peering resource
+

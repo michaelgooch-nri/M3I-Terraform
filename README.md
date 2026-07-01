@@ -265,31 +265,36 @@ Note:
 
 ## Tagging Strategy
 
-All tagged resources use this pattern:
+Current tagging model:
 
-- `tags = merge(local.tags, var.common_tags)`
+- Only Resource Groups are tagged via `local.rg_tags`.
+- Non-RG resources are intentionally untagged in Terraform.
 
-This means:
+Resource Group tag schema:
 
-- `local.tags` provides module defaults.
-- `common_tags` can add new keys and override existing defaults when keys overlap.
+- `Application` = `TBD`
+- `Environment` = `PROD` or `NONPROD` (by root/subscription role)
+- `Region` = `CUS` or `EUS2` (by region)
+- `Owner` = `TBD`
+- `CostCenter` = `TBD`
+- `ManagedBy` = `TBD`
+- `DataClassification` = `TBD`
 
-### Default Tags By Root Module
+### Resource Group Tag Values By Root Module
 
-| Root Module | Default Tags |
+| Root Module | Environment | Region |
 |---|---|
-| centralus/platform | environment=prod, project=m3i-azure-platform, region=centralus, managed_by=terraform |
-| eastus2/platform | environment=prod, project=m3i-azure-platform, region=eastus2, managed_by=terraform |
-| centralus/spoke-prod | environment=prod, project=m3i-azure-platform, region=centralus, spoke_type=workload, managed_by=terraform |
-| centralus/spoke-nonprod | environment=nonprod, project=m3i-azure-platform, region=centralus, spoke_type=workload, managed_by=terraform |
-| eastus2/spoke-prod | environment=prod, project=m3i-azure-platform, region=eastus2, spoke_type=workload, managed_by=terraform |
-| eastus2/spoke-nonprod | environment=nonprod, project=m3i-azure-platform, region=eastus2, spoke_type=workload, managed_by=terraform |
+| centralus/platform | PROD | CUS |
+| eastus2/platform | PROD | EUS2 |
+| centralus/spoke-prod | PROD | CUS |
+| centralus/spoke-nonprod | NONPROD | CUS |
+| eastus2/spoke-prod | PROD | EUS2 |
+| eastus2/spoke-nonprod | NONPROD | EUS2 |
 
-### Where To Maintain Tag Defaults
+### Notes
 
-- Update per-module defaults in each `local.tf`.
-- Use each module's `common_tags` variable for environment-specific extensions.
-- Keep the table above in sync whenever tag keys or values change in any `local.tf`.
+- Existing legacy tags on VM OS disks were removed directly in Azure after apply.
+- Validation query confirms zero tagged VM OS disks in the managed VM resource groups.
 
 ## Route Table Matrix
 
@@ -297,10 +302,10 @@ This means:
 |---|---|---|---|
 | CentralUS Hub | m3i-hub-prod-cus-rt-snet-shared-services-01 | m3i-cus-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-shared-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-shared-services-01 |
 | CentralUS Hub | m3i-hub-prod-cus-rt-snet-pe-01 | m3i-cus-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-cus-pe-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-cus-snet-pe-01 |
-| CentralUS Hub | m3i-hub-prod-cus-rt-snet-azfw-01 | m3i-cus-default-to-internet: 0.0.0.0/0 -> Internet (required for AzureFirewallSubnet); m3i-cus-to-eus2-firewall: 10.101.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
+| CentralUS Hub | m3i-hub-prod-cus-rt-snet-azfw-01 | Default route handling on AzureFirewallSubnet is constrained by Azure platform rules and not managed as an explicit Terraform route resource; m3i-cus-to-eus2-firewall: 10.101.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
 | EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-shared-services-01 | m3i-eus2-shared-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-shared-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-shared-services-01 |
 | EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-pe-01 | m3i-eus2-pe-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub firewall private IP); m3i-eus2-pe-to-cus-via-hub-firewall: 10.100.0.0/16 -> VirtualAppliance (hub firewall private IP) | m3i-hub-prod-eus2-snet-pe-01 |
-| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-azfw-01 | m3i-eus2-default-to-internet: 0.0.0.0/0 -> Internet (required for AzureFirewallSubnet); m3i-eus2-to-cus-firewall: 10.100.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
+| EastUS2 Hub | m3i-hub-prod-eus2-rt-snet-azfw-01 | Default route handling on AzureFirewallSubnet is constrained by Azure platform rules and not managed as an explicit Terraform route resource; m3i-eus2-to-cus-firewall: 10.100.0.0/16 -> VirtualAppliance (other_region_firewall_private_ip, conditional) | AzureFirewallSubnet |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-vm-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-vm-01 |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-db-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-db-01 |
 | CentralUS Spoke Prod | m3i-lz-prod-cus-rt-pe-01 | m3i-cus-default-to-hub-firewall: 0.0.0.0/0 -> VirtualAppliance (hub_firewall_private_ip); m3i-cus-to-eus2-via-hub-firewall: 10.101.0.0/16 -> VirtualAppliance (hub_firewall_private_ip) | m3i-lz-prod-cus-snet-pe-01 |
